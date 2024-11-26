@@ -1,0 +1,9 @@
+#!/bin/bash
+# run as root
+# https://www.bisecthosting.com/clients/index.php?rp=/knowledgebase/618/How-to-setup-automatic-server-wipes-on-a-Rust-server.html
+docker stop rust-{{ rust_gameserver_identity }}
+rm /etc/rust/server/{{ rust_gameserver_identity }}/player.deaths.*
+rm /etc/rust/server/{{ rust_gameserver_identity }}/*.map
+rm /etc/rust/server/{{ rust_gameserver_identity }}/*.sav*
+sudo sed -i~ '/^RUST_SERVER_SEED=/s/=.*/='$RANDOM'/' /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
+docker start rust-{{ rust_gameserver_identity }}

@@ -1,0 +1,26 @@
+---
+dependencies: []
+galaxy_info:
+  author: Jason Ernst
+  role_name: rust_gameserver
+  description: "Installs and configures a rust gameserver in a docker container. Also
+    installs a cron job on the host which wipes the server according to a wipe schedule"
+  company: ""
+  license: GPLv3
+  min_ansible_version: "2.4"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - bionic # 18.04 LTS
+        - focal # 20.04 LTS
+        - jammy # 22.04 LTS
+        - noble # 24.04 LTS
+  galaxy_tags:
+    - docker
+    - hosted
+    - infrastructure
+    - rust
+    - game
+    - server
+    - cron
+    - wipe

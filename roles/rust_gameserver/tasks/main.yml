@@ -1,0 +1,42 @@
+---
+- name: Create config directories
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '755'
+    owner: root
+    group: root
+  loop:
+    - /etc/rust/{{ rust_gameserver_identity }}
+    - /etc/rust-{{ rust_gameserver_identity }}/oxide
+    - /etc/rust-{{ rust_gameserver_identity }}/oxide/plugins
+    - /etc/rust-{{ rust_gameserver_identity }}/cfg
+
+- name: Copy configs to host
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: '644'
+    owner: root
+    group: root
+  loop:
+    - src: files/rust.env.j2
+      dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
+    - src: files/seed.env.j2
+      dest: /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
+    - src: files/server.cfg.j2
+      dest: /etc/rust/server/{{ rust_gameserver_identity }}/cfg/server.cfg
+    - src: files/wipe.sh.j2
+      dest: /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh
+
+- name: Cron wipe
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.cron:
+    name: "rust_wipe_{{ rust_gameserver_identity }}"
+    job: "bash /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh"
+    cron_file: "rust_wipe_{{ rust_gameserver_identity }}"
