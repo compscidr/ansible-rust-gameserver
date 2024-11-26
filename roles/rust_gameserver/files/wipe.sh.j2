@@ -1,9 +1,31 @@
 #!/bin/bash
 # run as root
 # https://www.bisecthosting.com/clients/index.php?rp=/knowledgebase/618/How-to-setup-automatic-server-wipes-on-a-Rust-server.html
-docker stop rust-{{ rust_gameserver_identity }}
-rm /etc/rust/server/{{ rust_gameserver_identity }}/player.deaths.*
-rm /etc/rust/server/{{ rust_gameserver_identity }}/*.map
-rm /etc/rust/server/{{ rust_gameserver_identity }}/*.sav*
-sudo sed -i~ '/^RUST_SERVER_SEED=/s/=.*/='$RANDOM'/' /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
-docker start rust-{{ rust_gameserver_identity }}
+wipe() {
+  docker stop rust-{{ rust_gameserver_identity }}
+  rm /etc/rust/server/{{ rust_gameserver_identity }}/player.deaths.*
+  rm /etc/rust/server/{{ rust_gameserver_identity }}/*.map
+  rm /etc/rust/server/{{ rust_gameserver_identity }}/*.sav*
+
+  if [ {{ rust_gameserver_wipe_bp }} ]; then
+    rm /etc/rust/server/{{ rust_gameserver_identity }}/*.states
+    rm /etc/rust/server/{{ rust_gameserver_identity }}/*.blueprints.*
+  fi
+
+  sudo sed -i~ '/^RUST_SERVER_SEED=/s/=.*/='$RANDOM'/' /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
+  docker start rust-{{ rust_gameserver_identity }}
+}
+
+# determine if we actually issue wipe now or not
+# this is the day within the month
+day=$( date +%d )
+
+# in weekly, biweekly and monthly, we always wipe during the first week
+if [ $day -lt 7 ]; then
+  wipe()
+elif [ {{ rust_gameserver_wipe }} -eq "biweekly" ] && [ $day -ge 15 ] && [ day -le 21]; then
+  # we also wipe on the third week for biweekly
+  wipe()
+elif [ {{ rust_gameserver_wipe }} -eq "weekly" ]; then
+  wipe()
+fi

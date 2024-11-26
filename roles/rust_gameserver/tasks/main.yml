@@ -9,10 +9,11 @@
     owner: root
     group: root
   loop:
-    - /etc/rust/{{ rust_gameserver_identity }}
-    - /etc/rust-{{ rust_gameserver_identity }}/oxide
-    - /etc/rust-{{ rust_gameserver_identity }}/oxide/plugins
-    - /etc/rust-{{ rust_gameserver_identity }}/cfg
+    - /etc/rust
+    - /etc/rust/server
+    - /etc/rust/server/oxide
+    - /etc/rust/oxide/plugins
+    - /etc/rust/server/{{ rust_gameserver_identity }}/cfg
 
 - name: Copy configs to host
   tags: rust_gameserver
@@ -28,11 +29,12 @@
       dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
     - src: files/seed.env.j2
       dest: /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
-    - src: files/server.cfg.j2
-      dest: /etc/rust/server/{{ rust_gameserver_identity }}/cfg/server.cfg
     - src: files/wipe.sh.j2
       dest: /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh
 
+# this should fire every week on the day of the week specified at the time
+# and then the wipe script will determine whether or not to actually wipe
+# depending on the rust_gameserver_wipe and the current day
 - name: Cron wipe
   tags: rust_gameserver
   become: true
@@ -40,3 +42,17 @@
     name: "rust_wipe_{{ rust_gameserver_identity }}"
     job: "bash /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh"
     cron_file: "rust_wipe_{{ rust_gameserver_identity }}"
+    hour: "{{ rust_gameserver_wipe_hour_of_day }}"
+    weekday: "{{ rust_gameserver_wipe_day_of_week }}"
+    user: root
+
+
+- name: Collect localtime
+  ansible.builtin.stat:
+    path: /etc/localtime
+  register: etc_localtime
+
+- name: Set timezone fact
+  ansible.builtin.set_fact:
+    timezone: "{{ etc_localtime.stat.lnk_source | regex_replace('^/usr/share/zoneinfo/', '') }}"
+  when: etc_localtime.stat.exists and etc_localtime.stat.islnk and etc_localtime.stat.lnk_source is match("/usr/share/zoneinfo/.*")

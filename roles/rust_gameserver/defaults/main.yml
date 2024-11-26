@@ -1,21 +1,25 @@
 ---
 rust_gameserver_startup_args:
 rust_gameserver_identity: "monthly"
-rust_gameserver_maxplayers: 500
+rust_gameserver_maxplayers: 50
 rust_gameserver_name: "Ansible Rust"
 rust_gameserver_description: "A Rust Server Deployed from Ansible"
 rust_gameserver_worldsize: 3500
-rust_gameserver_tags: "Vanilla,NA,Monthly"
+rust_gameserver_tags: "Vanilla,NA,{{ rust_gameserver_wipe }}"
 rust_gameserver_rcon_password: "test"
 rust_gameserver_update_checking: 1
-rust_gameserver_port:
-rust_gameserver_query_port:
-rust_gameserver_rcon_port:
-rust_gameserver_app_port:
+rust_gameserver_port: 28015
+rust_gameserver_query_port: 28017
+rust_gameserver_rcon_port: 28016
+rust_gameserver_app_port: 28082
 rust_gameserver_oxide_enabled: 0
 rust_gameserver_oxide_update_on_boot: 1
 rust_gameserver_heartbeat: 1
 rust_gameserver_url:
 rust_gameserver_banner_url:
-rust_gameserver_cron_wipe_schedule:
-rust_gameserver_seed: 0
+rust_gameserver_wipe_day_of_week: 4
+rust_gameserver_wipe_hour_of_day: 19
+rust_gameserver_wipe: "monthly" # can be monthly,biweekly,or weekly
+rust_gameserver_wipe_bp: 1
+rust_gameserver_timezone: "{{ timezone }}"
+rust_gameserver_seed: 50000
