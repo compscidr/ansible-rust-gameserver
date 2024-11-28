@@ -1,0 +1,19 @@
+---
+namespace: compscidr
+name: rust_gameserver
+authors:
+  - Jason Ernst <ernstjason1@gmail.com>
+description: A collection of roles to configure and deploy a rust game server. Include
+  a cron job which wipes the server weekly, biweekly, or monthly depending on config.
+  Can be configured to wipe or leave the blueprints during wipe.
+license_file: LICENSE
+readme: README.md
+version: 0.0.1
+repository: https://github.com/compscidr/ansible-rust-gameserver
+tags:
+  - rust
+  - gameserver
+  - docker
+  - infrastructure
+dependencies:
+  community.docker: "*"
