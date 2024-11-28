@@ -1,5 +1,26 @@
 ---
-- name: Deploy Rust Server
+- name: Deploy Rust Servers
   hosts: all
   roles:
-    - rust_gameserver
+    - role: rust_gameserver
+      name: weekly
+      vars:
+        rust_gameserver_identity: "weekly"
+        rust_gameserver_worldsize: 3000
+        rust_gameserver_rcon_web_port: 8001
+        rust_gameserver_port: 27015
+        rust_gameserver_query_port: 27016
+        rust_gameserver_rcon_port: 27017
+        rust_gameserver_app_port: 27082
+        rust_gameserver_seed: 1234
+    - role: rust_gameserver
+      name: monthly
+      vars:
+        rust_gameserver_identity: "monthly"
+        rust_gameserver_worldsize: 3500
+        rust_gameserver_rcon_web_port: 8000
+        rust_gameserver_port: 28015
+        rust_gameserver_query_port: 28016
+        rust_gameserver_rcon_port: 28017
+        rust_gameserver_app_port: 28082
+        rust_gameserver_seed: 4321

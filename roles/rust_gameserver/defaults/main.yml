@@ -15,7 +15,7 @@ rust_gameserver_port: 28015
 rust_gameserver_query_port: 28017
 rust_gameserver_rcon_port: 28016
 rust_gameserver_app_port: 28082
-rust_gameserver_oxide_enabled: 0
+rust_gameserver_oxide_enabled: 1
 rust_gameserver_oxide_update_on_boot: 1
 rust_gameserver_heartbeat: 1
 rust_gameserver_url: https://discord.gg/t77M3yAgKu
