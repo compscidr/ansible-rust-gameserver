@@ -46,13 +46,31 @@
     weekday: "{{ rust_gameserver_wipe_day_of_week }}"
     user: root
 
-
-- name: Collect localtime
-  ansible.builtin.stat:
-    path: /etc/localtime
-  register: etc_localtime
-
-- name: Set timezone fact
-  ansible.builtin.set_fact:
-    timezone: "{{ etc_localtime.stat.lnk_source | regex_replace('^/usr/share/zoneinfo/', '') }}"
-  when: etc_localtime.stat.exists and etc_localtime.stat.islnk and etc_localtime.stat.lnk_source is match("/usr/share/zoneinfo/.*")
+- name: Deply rust server
+  become: true
+  community.docker.docker_container:
+    name: "rust-{{ rust_gameserver_identity }}"
+    image: ghcr.io/compscidr/rust-server
+    pull: true
+    volumes:
+      - "/etc/rust/:/steamcmd/rust:rw"
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/rust.env:/etc/rust/rust.env"
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env"
+    ports:
+      - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}"
+      - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}/udp"
+      - "{{ rust_gameserver_rcon_port }}:{{ rust_gameserver_rcon_port }}"
+      - "{{ rust_gameserver_rcon_port }}:{{ rust_gameserver_rcon_port }}/udp"
+      - "{{ rust_gameserver_query_port }}:{{ rust_gameserver_query_port }}"
+      - "{{ rust_gameserver_query_port }}:{{ rust_gameserver_query_port }}/udp"
+      - "{{ rust_gameserver_rcon_web_port }}:8080"
+      - "{{ rust_gameserver_app_port }}:{{ rust_gameserver_app_port }}"
+      - "{{ rust_gameserver_app_port }}:{{ rust_gameserver_app_port }}/udp"
+    env:
+      TZ: "{{ rust_gameserver_timezone }}"
+      PUID: "1000"
+      PGID: "1000"
+    devices:
+      - /dev/dri:/dev/dri
+    restart_policy: unless-stopped
+    memory: 20g
