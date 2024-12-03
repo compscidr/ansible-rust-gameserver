@@ -58,8 +58,8 @@
       - "/etc/rust/:/steamcmd/rust:rw"
       - "/etc/rust/server/{{ rust_gameserver_identity }}/rust.env:/etc/rust/rust.env"
       - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env"
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/oxide:/etc/rust/oxide"
-      - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data:/etc/rust/RustDedicated_Data"
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/oxide:/steamcmd/rust/oxide"
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data:/steamcmd/rust/RustDedicated_Data"
     ports:
       - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}"
       - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}/udp"
