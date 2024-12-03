@@ -55,11 +55,11 @@
     image: ghcr.io/compscidr/rust-server
     pull: true
     volumes:
-      - "/etc/rust/:/steamcmd/rust:rw"
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/rust.env:/etc/rust/rust.env"
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env"
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/oxide:/steamcmd/rust/oxide"
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data:/steamcmd/rust/RustDedicated_Data"
+      - "/etc/rust/server/{{ rust_gameserver_identity }}:/steamcmd/rust/server/{{ rust_gameserver_identity }}:rw" # persist save files
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/rust.env:/etc/rust/rust.env" # lets us change the env without redeploying container
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env" # lets us change the seed without redploying container
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/oxide:/steamcmd/rust/oxide"  # plugins / plugin config
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data:/steamcmd/rust/RustDedicated_Data" # dll plugins
     ports:
       - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}"
       - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}/udp"
