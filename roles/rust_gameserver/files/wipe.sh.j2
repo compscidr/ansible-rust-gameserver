@@ -8,7 +8,7 @@ wipe() {
   rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.map
   rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.sav*
 
-  if [ {{ rust_gameserver_wipe_bp -eq 1 }} ]; then
+  if [ {{ rust_gameserver_wipe_bp }} -eq 1 ]; then
     rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.states
     rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.blueprints.*
   fi

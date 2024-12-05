@@ -8,7 +8,7 @@ description: A collection of roles to configure and deploy a rust game server. I
   Can be configured to wipe or leave the blueprints during wipe.
 license_file: LICENSE
 readme: README.md
-version: 0.0.5
+version: 0.0.6
 repository: https://github.com/compscidr/ansible-rust-gameserver
 tags:
   - rust
