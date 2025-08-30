@@ -1,0 +1,4 @@
+# Molecule Test Requirements
+# This file is used only for molecule testing to avoid Galaxy dependency issues
+# The main requirements.yml is used for actual deployment
+collections: []

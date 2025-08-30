@@ -15,5 +15,8 @@ provisioner:
   config_options:
     defaults:
       allow_broken_conditionals: true
+  ansible:
+    config_file: ./ansible.cfg
+  requirements_file: ./molecule/requirements.yml
 verifier:
   name: ansible

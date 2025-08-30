@@ -3,7 +3,7 @@ on: [push, pull_request]
 
 jobs:
   build:
-    name: Ansible Lint # Naming the build is important to use it as a status check
+    name: Ansible Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,3 +33,6 @@ jobs:
           ansible-galaxy collection install community.docker
       - name: Run molecule tests
         run: molecule test
+        env:
+          PY_COLORS: '1'
+          ANSIBLE_FORCE_COLOR: '1'
