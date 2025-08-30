@@ -1,0 +1,23 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  pre_tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: ansible_os_family == "Debian"
+
+  tasks:
+    - name: Include rust_gameserver role
+      ansible.builtin.include_role:
+        name: rust_gameserver
+      vars:
+        rust_gameserver_identity: "test"
+        rust_gameserver_name: "Test Server"
+        rust_gameserver_description: "Molecule Test Server"
+        rust_gameserver_rcon_password: "testpass"
+        rust_gameserver_wipe_day_of_week: 4
+        rust_gameserver_wipe_hour_of_day: 19
+        molecule_test: true
