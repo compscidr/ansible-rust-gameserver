@@ -20,4 +20,4 @@
         rust_gameserver_rcon_password: "testpass"
         rust_gameserver_wipe_day_of_week: 4
         rust_gameserver_wipe_hour_of_day: 19
-        molecule_test: true
+        rust_gameserver_molecule_test: true
