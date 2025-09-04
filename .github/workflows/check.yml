@@ -19,22 +19,29 @@ jobs:
         with:
           python-version: '3.13'
       
-      - name: Install dependencies
+      - name: Create virtual environment and install dependencies
         run: |
+          python -m venv venv
+          source venv/bin/activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
       - name: Install collections
         run: |
+          source venv/bin/activate
           ansible-galaxy collection install community.docker
         continue-on-error: true
       
       - name: Run ansible-lint (with collections)
-        run: ansible-lint
+        run: |
+          source venv/bin/activate
+          ansible-lint
         continue-on-error: true
         
       - name: Run ansible-lint (offline mode)
-        run: ansible-lint --offline
+        run: |
+          source venv/bin/activate
+          ansible-lint --offline
         if: failure()
 
   molecule:
@@ -48,13 +55,16 @@ jobs:
         with:
           python-version: '3.13'
       
-      - name: Install dependencies
+      - name: Create virtual environment and install dependencies
         run: |
+          python -m venv venv
+          source venv/bin/activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
       - name: Install collections
         run: |
+          source venv/bin/activate
           ansible-galaxy collection install community.docker
         continue-on-error: true
       
@@ -68,7 +78,9 @@ jobs:
           sudo chmod 666 /var/run/docker.sock
       
       - name: Run molecule tests
-        run: molecule test
+        run: |
+          source venv/bin/activate
+          molecule test
         env:
           MOLECULE_NO_LOG: false
           CI: true

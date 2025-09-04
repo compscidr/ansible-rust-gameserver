@@ -1,3 +1,9 @@
 .vscode
 .molecule
 collections/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
