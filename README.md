@@ -28,3 +28,46 @@ should only do this if your plugins don't modify game behavior)
 ## Dll Plugins
 Plugins like [rust::io](http://playrust.io/manual/#!index.md) should be copied
 to `/etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data/Managed`.
+
+## Development
+
+### Setup Development Environment
+
+To contribute to this project or run tests locally, set up a virtual environment:
+
+```bash
+# Clone the repository
+git clone https://github.com/compscidr/ansible-rust-gameserver.git
+cd ansible-rust-gameserver
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install development dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Install Ansible collections (optional, for full functionality)
+ansible-galaxy collection install -r requirements.yml
+```
+
+### Running Tests
+
+With the virtual environment activated:
+
+```bash
+# Run ansible-lint
+ansible-lint
+
+# Run molecule tests (requires Docker)
+molecule test
+```
+
+### Deactivating Virtual Environment
+
+When you're done working:
+
+```bash
+deactivate
+```

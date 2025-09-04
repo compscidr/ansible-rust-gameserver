@@ -27,11 +27,11 @@
     owner: root
     group: root
   loop:
-    - src: files/rust.env.j2
+    - src: rust.env.j2
       dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
-    - src: files/seed.env.j2
+    - src: seed.env.j2
       dest: /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
-    - src: files/wipe.sh.j2
+    - src: wipe.sh.j2
       dest: /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh
 
 # this should fire every week on the day of the week specified at the time
@@ -48,7 +48,7 @@
     weekday: "{{ rust_gameserver_wipe_day_of_week }}"
     user: root
 
-- name: Deply rust server
+- name: Deploy rust server
   become: true
   community.docker.docker_container:
     name: "rust-{{ rust_gameserver_identity }}"
@@ -78,3 +78,4 @@
       - /dev/dri:/dev/dri
     restart_policy: unless-stopped
     memory: 20g
+  when: not (rust_gameserver_molecule_test | default(false))

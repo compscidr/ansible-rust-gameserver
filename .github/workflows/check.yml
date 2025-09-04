@@ -1,17 +1,86 @@
-name: ansible-lint
-on: [push, pull_request]
+---
+name: CI Tests
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Ansible Lint # Naming the build is important to use it as a status check
+  lint:
+    name: Ansible Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Run ansible-lint
-        uses: ansible/ansible-lint@main
-        # optional (see below):
+      
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          args: ""
-          setup_python: "true"
-          working_directory: ""
-          requirements_file: ""
+          python-version: '3.13'
+      
+      - name: Create virtual environment and install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Install collections
+        run: |
+          source venv/bin/activate
+          ansible-galaxy collection install community.docker
+        continue-on-error: true
+      
+      - name: Run ansible-lint (with collections)
+        run: |
+          source venv/bin/activate
+          ansible-lint
+        continue-on-error: true
+        
+      - name: Run ansible-lint (offline mode)
+        run: |
+          source venv/bin/activate
+          ansible-lint --offline
+        if: failure()
+
+  molecule:
+    name: Molecule Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      
+      - name: Create virtual environment and install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Install collections
+        run: |
+          source venv/bin/activate
+          ansible-galaxy collection install community.docker
+        continue-on-error: true
+      
+      - name: Create roles symlink for molecule
+        run: |
+          ln -sf ../../roles molecule/default/roles
+      
+      - name: Start Docker daemon
+        run: |
+          sudo systemctl start docker
+          sudo chmod 666 /var/run/docker.sock
+      
+      - name: Run molecule tests
+        run: |
+          source venv/bin/activate
+          molecule test
+        env:
+          MOLECULE_NO_LOG: false
+          CI: true

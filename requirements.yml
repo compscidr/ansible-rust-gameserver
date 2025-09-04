@@ -1,3 +1,2 @@
-collections:
-  - name: community.docker
-    version: "4.7.0"
+# Empty requirements for molecule testing to avoid Galaxy dependency issues
+collections: []

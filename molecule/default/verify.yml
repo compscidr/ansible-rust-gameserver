@@ -1,0 +1,70 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Verify rust config directories exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: config_dirs
+      loop:
+        - /etc/rust
+        - /etc/rust/server
+        - /etc/rust/server/test
+        - /etc/rust/server/test/oxide
+        - /etc/rust/server/test/oxide/plugins
+        - /etc/rust/server/test/cfg
+        - /etc/rust/server/test/RustDedicated_Data
+        - /etc/rust/server/test/RustDedicated_Data/Managed
+
+    - name: Assert all directories exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+      loop: "{{ config_dirs.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Verify rust configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: config_files
+      loop:
+        - /etc/rust/server/test/rust.env
+        - /etc/rust/server/test/seed.env
+        - /etc/rust/server/test/wipe.sh
+
+    - name: Assert configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+      loop: "{{ config_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Verify rust.env contains expected content
+      ansible.builtin.lineinfile:
+        path: /etc/rust/server/test/rust.env
+        line: 'RUST_SERVER_NAME="Test Server"'
+        state: present
+      check_mode: true
+      register: rust_env_check
+
+    - name: Assert rust.env has correct content
+      ansible.builtin.assert:
+        that:
+          - not rust_env_check.changed
+
+    - name: Check if rust wipe cron exists
+      ansible.builtin.stat:
+        path: /etc/cron.d/rust_wipe_test
+      register: cron_file_check
+
+    - name: Assert cron job file exists
+      ansible.builtin.assert:
+        that:
+          - cron_file_check.stat.exists
+          - cron_file_check.stat.isreg
