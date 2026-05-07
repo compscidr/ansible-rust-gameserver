@@ -22,6 +22,7 @@ rust_gameserver_url: https://discord.gg/t77M3yAgKu
 rust_gameserver_banner_url: https://images2.imgbox.com/37/6d/fOpdrpYS_o.jpeg
 rust_gameserver_wipe_day_of_week: 4
 rust_gameserver_wipe_hour_of_day: 19
+rust_gameserver_wipe_minute_of_hour: 0
 rust_gameserver_wipe: "weekly" # can be monthly,biweekly,or weekly
 rust_gameserver_wipe_bp: 1 # whether or not to wipe blueprint (defaults to true)
 rust_gameserver_timezone: "America/Los_Angeles"

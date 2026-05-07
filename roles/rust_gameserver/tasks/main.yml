@@ -44,6 +44,7 @@
     name: "rust_wipe_{{ rust_gameserver_identity }}"
     job: "bash /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh"
     cron_file: "rust_wipe_{{ rust_gameserver_identity }}"
+    minute: "{{ rust_gameserver_wipe_minute_of_hour }}"
     hour: "{{ rust_gameserver_wipe_hour_of_day }}"
     weekday: "{{ rust_gameserver_wipe_day_of_week }}"
     user: root
