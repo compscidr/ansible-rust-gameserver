@@ -26,3 +26,18 @@ rust_gameserver_wipe: "weekly" # can be monthly,biweekly,or weekly
 rust_gameserver_wipe_bp: 1 # whether or not to wipe blueprint (defaults to true)
 rust_gameserver_timezone: "America/Los_Angeles"
 rust_gameserver_seed: 50000
+# Disable the image-defined HEALTHCHECK on the container.
+#
+# The upstream rust-server image ships a healthcheck that runs `rcon test` on a
+# 30s interval and treats `RconApp::Error` as unhealthy. Docker itself respects
+# the image's `start_period` (15min) and won't mark the container unhealthy
+# while the steam install is still running — but some third-party Docker
+# managers (notably UGREEN NAS's `docker_serv`, observed killing containers
+# via SIGKILL ~17s after a failed health probe regardless of `start_period`)
+# don't. On those systems the container gets killed mid-install on every
+# cycle and the server never finishes booting.
+#
+# Set this to `true` to override the image's healthcheck with `["NONE"]`,
+# which Docker treats as "no healthcheck". You'll lose the unhealthy-marker
+# signal in `docker ps`, but the container will be allowed to finish booting.
+rust_gameserver_healthcheck_disabled: false
