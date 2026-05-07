@@ -48,7 +48,9 @@ rust_gameserver_url                     | A url for a website or discord server
 rust_gameserver_banner_url              | A url for the background banner for the server browser
 rust_gameserver_wipe_day_of_week        | The day of the week the server wipes on (see: https://wiki.facepunch.com/rust/server-wipe-timer)
 rust_gameserver_wipe_hour_of_day        | The time of day the server wipes on
+rust_gameserver_wipe_minute_of_hour     | The minute of the hour the wipe cron fires (default `0`). Without this, the cron's `minute` field defaults to `*` and would fire every minute of the wipe hour.
 rust_gameserver_wipe                    | monthly, biweekly, or weekly
 rust_gameserver_timezone                | The timezone string (ex, "America/Los Angeles")
 rust_gameserver_wipe_bp                 | Whether or not to wipe blueprints
-rust_gameserver_seed                    | Starting seed for the first wipe. The wipe script will pick random
+rust_gameserver_seed                    | Starting seed for the first wipe. If omitted or set to `0`, the wipe script will pick a random seed.
+rust_gameserver_healthcheck_disabled    | Set to `true` to override the image's HEALTHCHECK with `["NONE"]`. Useful on hosts where a third-party Docker manager (e.g. UGREEN NAS) ignores the image's `start_period` and kills the container mid-install when the rcon-based health probe fails. Default `false`.
