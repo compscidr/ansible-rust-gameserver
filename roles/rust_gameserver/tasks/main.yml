@@ -78,4 +78,10 @@
       - /dev/dri:/dev/dri
     restart_policy: unless-stopped
     memory: 20g
+    # The image ships a HEALTHCHECK that runs `rcon test` and reports unhealthy
+    # while RCON is starting up. Docker respects `start_period`, but some
+    # third-party container managers (e.g. UGREEN NAS's docker_serv) don't and
+    # will kill the container mid-install. When this is set, override the
+    # image's healthcheck with `["NONE"]` so it's effectively disabled.
+    healthcheck: "{{ {'test': ['NONE']} if rust_gameserver_healthcheck_disabled else omit }}"
   when: not (rust_gameserver_molecule_test | default(false))
