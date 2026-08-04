@@ -17,15 +17,18 @@
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data/Managed
 
+# rust.env carries RUST_RCON_PASSWORD — not world-readable. Group 1000 matches the
+# PUID/PGID the container runs with, so both the container entrypoint (root) and the
+# dropped game user can read it while other host users cannot.
 - name: Copy rust.env to host
   tags: rust_gameserver
   become: true
   ansible.builtin.template:
     src: rust.env.j2
     dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
-    mode: '644'
+    mode: '640'
     owner: root
-    group: root
+    group: "1000"
     force: "{{ rust_gameserver_overwrite_env }}"
 
 # seed.env is deliberately create-only for EVERYONE: wipe.sh rotates the seed at
