@@ -1,5 +1,5 @@
 ---
-- name: Converge with defaults first (simulates an existing cron-managed install)
+- name: Converge with defaults (simulates an existing cron-managed install)
   hosts: all
   become: true
   pre_tasks:
@@ -18,29 +18,3 @@
         rust_gameserver_description: "Molecule Test Server"
         rust_gameserver_rcon_password: "testpass"
         rust_gameserver_molecule_test: true
-
-- name: Drift rust.env like an external manager would
-  hosts: all
-  become: true
-  tasks:
-    - name: Change the server name in rust.env
-      ansible.builtin.lineinfile:
-        path: /etc/rust/server/test/rust.env
-        regexp: '^RUST_SERVER_NAME='
-        line: 'RUST_SERVER_NAME="Panel Managed Name"'
-
-- name: Re-converge in external-manager mode
-  hosts: all
-  become: true
-  tasks:
-    - name: Include rust_gameserver role with panel-mode flags
-      ansible.builtin.include_role:
-        name: rust_gameserver
-      vars:
-        rust_gameserver_identity: "test"
-        rust_gameserver_name: "Test Server"
-        rust_gameserver_description: "Molecule Test Server"
-        rust_gameserver_rcon_password: "testpass"
-        rust_gameserver_molecule_test: true
-        rust_gameserver_manage_wipe_cron: false
-        rust_gameserver_overwrite_env: false

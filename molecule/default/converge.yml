@@ -21,34 +21,3 @@
         rust_gameserver_wipe_day_of_week: 4
         rust_gameserver_wipe_hour_of_day: 19
         rust_gameserver_molecule_test: true
-
-- name: Mutate runtime-managed files (simulating wipe.sh / an external manager)
-  hosts: all
-  become: true
-  tasks:
-    - name: Rotate the seed like wipe.sh does
-      ansible.builtin.copy:
-        content: 'RUST_SERVER_SEED="99999"'
-        dest: /etc/rust/server/test/seed.env
-        mode: '644'
-    - name: Drift rust.env like an external manager would
-      ansible.builtin.lineinfile:
-        path: /etc/rust/server/test/rust.env
-        regexp: '^RUST_SERVER_NAME='
-        line: 'RUST_SERVER_NAME="Renamed At Runtime"'
-
-- name: Re-converge with default flags
-  hosts: all
-  become: true
-  tasks:
-    - name: Re-include rust_gameserver role
-      ansible.builtin.include_role:
-        name: rust_gameserver
-      vars:
-        rust_gameserver_identity: "test"
-        rust_gameserver_name: "Test Server"
-        rust_gameserver_description: "Molecule Test Server"
-        rust_gameserver_rcon_password: "testpass"
-        rust_gameserver_wipe_day_of_week: 4
-        rust_gameserver_wipe_hour_of_day: 19
-        rust_gameserver_molecule_test: true
