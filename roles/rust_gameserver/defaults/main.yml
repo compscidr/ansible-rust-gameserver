@@ -50,3 +50,7 @@ rust_gameserver_manage_wipe_cron: true
 # authoritative). Set false to write it only when absent (bootstrap-only), so a
 # runtime manager can own name/description/etc. without deploys reverting them.
 rust_gameserver_overwrite_env: true
+# Runtime uid/gid the container drops to (PUID/PGID) — also owns the per-identity
+# config directories so Oxide/the server can create files there, and groups rust.env.
+rust_gameserver_puid: "1000"
+rust_gameserver_pgid: "1000"

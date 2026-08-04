@@ -1,5 +1,5 @@
 ---
-- name: Create config directories
+- name: Create base config directories
   tags: rust_gameserver
   become: true
   ansible.builtin.file:
@@ -11,15 +11,28 @@
   loop:
     - /etc/rust
     - /etc/rust/server
+
+# Per-identity directories are owned by the container's runtime user (PUID/PGID):
+# Oxide and the game server run as that uid and need to CREATE files here (plugin
+# data, compiled artifacts, config rewrites) — root-owned 755 dirs break that.
+- name: Create server identity directories (owned by the runtime user)
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '755'
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+  loop:
     - /etc/rust/server/{{ rust_gameserver_identity }}/oxide
     - /etc/rust/server/{{ rust_gameserver_identity }}/oxide/plugins
     - /etc/rust/server/{{ rust_gameserver_identity }}/cfg
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data/Managed
 
-# rust.env carries RUST_RCON_PASSWORD — not world-readable. Group 1000 matches the
-# PUID/PGID the container runs with, so both the container entrypoint (root) and the
-# dropped game user can read it while other host users cannot.
+# rust.env carries RUST_RCON_PASSWORD — not world-readable. The runtime group can
+# read it (the container entrypoint and dropped game user), other host users cannot.
 - name: Copy rust.env to host
   tags: rust_gameserver
   become: true
@@ -28,8 +41,20 @@
     dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
     mode: '640'
     owner: root
-    group: "1000"
+    group: "{{ rust_gameserver_pgid }}"
     force: "{{ rust_gameserver_overwrite_env }}"
+
+# `force: false` above skips EVERYTHING when the file exists — including mode/owner.
+# This separate attributes-only task retrofits the not-world-readable fix onto
+# existing installs without ever touching the file's content.
+- name: Enforce rust.env permissions
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
+    mode: '640'
+    owner: root
+    group: "{{ rust_gameserver_pgid }}"
 
 # seed.env is deliberately create-only for EVERYONE: wipe.sh rotates the seed at
 # runtime, so re-templating it on deploy would silently change the map on the
@@ -96,8 +121,8 @@
       - "{{ rust_gameserver_app_port }}:{{ rust_gameserver_app_port }}/udp"
     env:
       TZ: "{{ rust_gameserver_timezone }}"
-      PUID: "1000"
-      PGID: "1000"
+      PUID: "{{ rust_gameserver_puid }}"
+      PGID: "{{ rust_gameserver_pgid }}"
     devices:
       - /dev/dri:/dev/dri
     restart_policy: unless-stopped
