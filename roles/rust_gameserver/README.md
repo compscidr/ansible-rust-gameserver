@@ -54,3 +54,18 @@ rust_gameserver_timezone                | The timezone string (ex, "America/Los 
 rust_gameserver_wipe_bp                 | Whether or not to wipe blueprints
 rust_gameserver_seed                    | Starting seed for the first wipe. If omitted or set to `0`, the wipe script will pick a random seed.
 rust_gameserver_healthcheck_disabled    | Set to `true` to override the image's HEALTHCHECK with `["NONE"]`. Useful on hosts where a third-party Docker manager (e.g. UGREEN NAS) ignores the image's `start_period` and kills the container mid-install when the rcon-based health probe fails. Default `false`.
+
+## Management modes
+
+By default this role is authoritative: every run re-templates `rust.env` and
+installs the wipe cron. If you manage the server at runtime with an external
+tool (for example [rustd.xyz](https://github.com/compscidr/rustd.xyz)), set:
+
+```yaml
+rust_gameserver_manage_wipe_cron: false  # removes the cron; your tool owns wipes
+rust_gameserver_overwrite_env: false     # rust.env written once at install, never overwritten
+```
+
+`seed.env` is always create-only regardless of these flags: the wipe script and
+external managers both rotate the seed at runtime, and a deploy must never
+revert it (that would change the map on the next restart).

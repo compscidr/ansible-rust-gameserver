@@ -17,22 +17,41 @@
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data/Managed
 
-- name: Copy configs to host
+- name: Copy rust.env to host
   tags: rust_gameserver
   become: true
   ansible.builtin.template:
-    src: "{{ item.src }}"
-    dest: "{{ item.dest }}"
+    src: rust.env.j2
+    dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
     mode: '644'
     owner: root
     group: root
-  loop:
-    - src: rust.env.j2
-      dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
-    - src: seed.env.j2
-      dest: /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
-    - src: wipe.sh.j2
-      dest: /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh
+    force: "{{ rust_gameserver_overwrite_env }}"
+
+# seed.env is deliberately create-only for EVERYONE: wipe.sh rotates the seed at
+# runtime, so re-templating it on deploy would silently change the map on the
+# next server restart (accidental wipe).
+- name: Create seed.env on host (never overwritten)
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.template:
+    src: seed.env.j2
+    dest: /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
+    mode: '644'
+    owner: root
+    group: root
+    force: false
+
+- name: Copy wipe.sh to host
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.template:
+    src: wipe.sh.j2
+    dest: /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh
+    mode: '644'
+    owner: root
+    group: root
+  when: rust_gameserver_manage_wipe_cron
 
 # this should fire every week on the day of the week specified at the time
 # and then the wipe script will determine whether or not to actually wipe
@@ -48,6 +67,7 @@
     hour: "{{ rust_gameserver_wipe_hour_of_day }}"
     weekday: "{{ rust_gameserver_wipe_day_of_week }}"
     user: root
+    state: "{{ 'present' if rust_gameserver_manage_wipe_cron else 'absent' }}"
 
 - name: Deploy rust server
   become: true

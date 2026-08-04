@@ -1,5 +1,5 @@
 ---
-- name: Converge
+- name: Converge with defaults first (simulates an existing cron-managed install)
   hosts: all
   become: true
   pre_tasks:
@@ -8,9 +8,8 @@
         update_cache: true
         cache_valid_time: 600
       when: ansible_os_family == "Debian"
-
   tasks:
-    - name: Include rust_gameserver role
+    - name: Include rust_gameserver role with defaults
       ansible.builtin.include_role:
         name: rust_gameserver
       vars:
@@ -18,30 +17,23 @@
         rust_gameserver_name: "Test Server"
         rust_gameserver_description: "Molecule Test Server"
         rust_gameserver_rcon_password: "testpass"
-        rust_gameserver_wipe_day_of_week: 4
-        rust_gameserver_wipe_hour_of_day: 19
         rust_gameserver_molecule_test: true
 
-- name: Mutate runtime-managed files (simulating wipe.sh / an external manager)
+- name: Drift rust.env like an external manager would
   hosts: all
   become: true
   tasks:
-    - name: Rotate the seed like wipe.sh does
-      ansible.builtin.copy:
-        content: 'RUST_SERVER_SEED="99999"'
-        dest: /etc/rust/server/test/seed.env
-        mode: '644'
-    - name: Drift rust.env like an external manager would
+    - name: Change the server name in rust.env
       ansible.builtin.lineinfile:
         path: /etc/rust/server/test/rust.env
         regexp: '^RUST_SERVER_NAME='
-        line: 'RUST_SERVER_NAME="Renamed At Runtime"'
+        line: 'RUST_SERVER_NAME="Panel Managed Name"'
 
-- name: Re-converge with default flags
+- name: Re-converge in external-manager mode
   hosts: all
   become: true
   tasks:
-    - name: Re-include rust_gameserver role
+    - name: Include rust_gameserver role with panel-mode flags
       ansible.builtin.include_role:
         name: rust_gameserver
       vars:
@@ -49,6 +41,6 @@
         rust_gameserver_name: "Test Server"
         rust_gameserver_description: "Molecule Test Server"
         rust_gameserver_rcon_password: "testpass"
-        rust_gameserver_wipe_day_of_week: 4
-        rust_gameserver_wipe_hour_of_day: 19
         rust_gameserver_molecule_test: true
+        rust_gameserver_manage_wipe_cron: false
+        rust_gameserver_overwrite_env: false

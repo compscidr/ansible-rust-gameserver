@@ -1,0 +1,38 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Check the wipe cron file
+      ansible.builtin.stat:
+        path: /etc/cron.d/rust_wipe_test
+      register: cron_file_check
+
+    - name: Assert the previously-installed cron was REMOVED
+      ansible.builtin.assert:
+        that:
+          - not cron_file_check.stat.exists
+
+    - name: Check panel-drifted rust.env survived
+      ansible.builtin.lineinfile:
+        path: /etc/rust/server/test/rust.env
+        line: 'RUST_SERVER_NAME="Panel Managed Name"'
+        state: present
+      check_mode: true
+      register: drift_check
+
+    - name: Assert rust.env was NOT re-templated (overwrite_env false)
+      ansible.builtin.assert:
+        that:
+          - not drift_check.changed
+
+    - name: Check seed.env still exists
+      ansible.builtin.stat:
+        path: /etc/rust/server/test/seed.env
+      register: seed_check
+
+    - name: Assert seed.env exists (created by first run, untouched after)
+      ansible.builtin.assert:
+        that:
+          - seed_check.stat.exists

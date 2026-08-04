@@ -68,3 +68,26 @@
         that:
           - cron_file_check.stat.exists
           - cron_file_check.stat.isreg
+
+    - name: Read seed.env after re-converge
+      ansible.builtin.slurp:
+        src: /etc/rust/server/test/seed.env
+      register: seed_env_content
+
+    - name: Assert the rotated seed survived the re-run (create-only semantics)
+      ansible.builtin.assert:
+        that:
+          - "'99999' in (seed_env_content.content | b64decode)"
+
+    - name: Check rust.env drift was overwritten (default overwrite_env)
+      ansible.builtin.lineinfile:
+        path: /etc/rust/server/test/rust.env
+        line: 'RUST_SERVER_NAME="Test Server"'
+        state: present
+      check_mode: true
+      register: rust_env_restored
+
+    - name: Assert rust.env was re-templated over the drift
+      ansible.builtin.assert:
+        that:
+          - not rust_env_restored.changed
