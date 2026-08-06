@@ -138,3 +138,31 @@
           - rust_env_stat.stat.mode == '0640'
           - rust_env_stat.stat.uid == 0
           - rust_env_stat.stat.gid == 1000
+
+    - name: Stat the identity directory
+      ansible.builtin.stat:
+        path: /etc/rust/server/test
+      register: identity_dir_stat
+
+    - name: Assert the identity directory is group-writable and setgid
+      ansible.builtin.assert:
+        that:
+          - identity_dir_stat.stat.mode == '2775'
+          - identity_dir_stat.stat.gid == 1000
+        fail_msg: >-
+          The identity directory must be group-writable and SETGID. Without setgid,
+          `sed -i` on seed.env hands the replacement to the manager's own group and
+          the container can no longer read its own seed.
+
+    - name: Read the runtime group
+      ansible.builtin.getent:
+        database: group
+        key: "1000"
+
+    - name: Assert the manager user was added to the runtime group
+      ansible.builtin.assert:
+        that:
+          - "'molecule_manager' in (ansible_facts.getent_group | dict2items | first).value[2]"
+        fail_msg: >-
+          molecule_manager is not in the runtime group, so an external manager could
+          not write inside the identity directory without root.
