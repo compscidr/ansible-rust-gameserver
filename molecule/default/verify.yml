@@ -24,6 +24,14 @@
         rust_gameserver_name: "Test Server"
         rust_gameserver_description: "Molecule Test Server"
         rust_gameserver_rcon_password: "testpass"
+        # Must match converge exactly. Re-running the role WITHOUT these resets the
+        # identity directory to the default 0755 and revokes the manager's group write —
+        # which is precisely what this re-include caught, and is a real hazard: an
+        # operator who deploys from a context missing these vars silently locks the
+        # external manager out of the directory it needs.
+        rust_gameserver_manager_users:
+          - "molecule_manager"
+        rust_gameserver_identity_dir_mode: '2775'
         rust_gameserver_wipe_day_of_week: 4
         rust_gameserver_wipe_hour_of_day: 19
         rust_gameserver_molecule_test: true
