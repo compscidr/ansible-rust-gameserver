@@ -1,4 +1,9 @@
 # Changelog
+## 0.2.0
+* New `rust_gameserver_manager_users` (default `[]`): host users an external manager (e.g. rustd.xyz) connects as, appended to the container's runtime group so they can write inside the identity directory. Deliberately group membership rather than a sudo grant — such a manager's filesystem work is confined to that one directory tree and it drives the server lifecycle over RCON, so root is never required
+* New `rust_gameserver_identity_dir_mode` (default `'0755'`, unchanged behaviour): set `'2775'` alongside `rust_gameserver_manager_users`. The group-write bit lets the manager create snapshots and delete map/save files; **SETGID is load-bearing** — `sed -i` on `seed.env` replaces the file rather than editing it, and without setgid the replacement lands in the manager's own group, at which point the container can no longer read its own seed
+* `/etc/rust/server/<identity>` is now managed explicitly instead of appearing as a side effect of creating its children, which is what makes the mode above meaningful
+
 ## 0.1.1
 * New `rust_gameserver_puid` / `rust_gameserver_pgid` vars (default `"1000"`): configure the container runtime uid/gid in one place — used for the container `PUID`/`PGID` env, per-identity directory ownership, and `rust.env` group
 * Per-identity config directories (`oxide/`, `oxide/plugins/`, `cfg/`, `RustDedicated_Data/`, `Managed/`) are now owned by the runtime user instead of root — Oxide and the server run as that uid and need to create files there (root-owned dirs silently broke plugin data writes and config rewrites)

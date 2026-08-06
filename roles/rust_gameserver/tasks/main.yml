@@ -12,6 +12,55 @@
     - /etc/rust
     - /etc/rust/server
 
+# The identity directory itself is where an external manager (rustd.xyz) does its
+# work: it creates snapshot subdirectories, rewrites seed.env and deletes map/save
+# files here. Managing it explicitly — rather than letting it appear as a side effect
+# of creating its children — is what makes `rust_gameserver_identity_dir_mode` mean
+# anything.
+#
+# SETGID (the leading 2 in 2775) is load-bearing when a manager user writes here, and
+# is the reason this is a directory mode rather than a per-file grant: `sed -i` on
+# seed.env does not edit in place, it writes a temp file and renames over the target.
+# The replacement is owned by whoever ran it, and WITHOUT setgid it lands in that
+# user's own group — at which point the container (which runs as PGID and reads
+# seed.env by group) can no longer read its own seed. Setgid keeps the runtime group
+# on anything created here, so that failure cannot happen.
+# An external wipe manager (rustd.xyz) needs to create, rewrite and delete files in
+# the identity directory. It deliberately does NOT get root: everything it does is
+# confined to that one tree, and the server lifecycle it drives goes over RCON rather
+# than docker or systemd — so group membership is sufficient and a sudo grant would be
+# strictly more privilege than the job needs.
+#
+# Resolved from the numeric PGID rather than taking a group name as input, so this
+# cannot drift from the group the container actually runs as.
+- name: Resolve the runtime group name for manager users
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.getent:
+    database: group
+    key: "{{ rust_gameserver_pgid }}"
+  when: rust_gameserver_manager_users | length > 0
+
+- name: Add manager users to the runtime group
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "{{ ansible_facts.getent_group | first }}"
+    append: true
+  loop: "{{ rust_gameserver_manager_users }}"
+  when: rust_gameserver_manager_users | length > 0
+
+- name: Create the server identity directory
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: /etc/rust/server/{{ rust_gameserver_identity }}
+    state: directory
+    mode: "{{ rust_gameserver_identity_dir_mode }}"
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+
 # Per-identity directories are owned by the container's runtime user (PUID/PGID):
 # Oxide and the game server run as that uid and need to CREATE files here (plugin
 # data, compiled artifacts, config rewrites) — root-owned 755 dirs break that.

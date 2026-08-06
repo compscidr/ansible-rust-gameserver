@@ -54,3 +54,17 @@ rust_gameserver_overwrite_env: true
 # config directories so Oxide/the server can create files there, and groups rust.env.
 rust_gameserver_puid: "1000"
 rust_gameserver_pgid: "1000"
+
+# Host users that an external manager (e.g. rustd.xyz) connects as. Each is appended
+# to the runtime group so it can write inside the identity directory. Deliberately
+# NOT a sudo grant: everything such a manager does is confined to that one directory
+# tree, and it drives the server lifecycle over RCON, so root is never required.
+# Requires rust_gameserver_identity_dir_mode to allow group write.
+rust_gameserver_manager_users: []
+
+# Mode for /etc/rust/server/<identity>. Default matches the previous behaviour.
+# Set '2775' when rust_gameserver_manager_users is non-empty: group write lets the
+# manager create snapshots and delete map files, and SETGID keeps the runtime group
+# on files it replaces — without it, `sed -i` on seed.env hands the file to the
+# manager's own group and the container can no longer read its own seed.
+rust_gameserver_identity_dir_mode: '0755'
