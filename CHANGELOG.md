@@ -1,4 +1,7 @@
 # Changelog
+## 0.3.1
+* **Fix 0.3.0 crash loop**: the install-root host dir moved to `/etc/rust/install/<identity>` — hosting it inside the identity dir made the two mounts contain each other (an infinitely deep directory cycle) and the entrypoint's recursive chown killed the container. Do not deploy 0.3.0. Hosts that ran 0.3.0 can remove the orphaned `/etc/rust/server/<identity>/install` dir after redeploying
+
 ## 0.3.0
 * Mount the game install root on the host (`/etc/rust/server/<identity>/install`) so files the game writes to its root — e.g. vanilla `world.rendermap` output, fetched over SSH by rustd.xyz — are host-visible. First boot after adopting the mount re-downloads the game into it; saves/plugins/env mounts are unchanged
 
