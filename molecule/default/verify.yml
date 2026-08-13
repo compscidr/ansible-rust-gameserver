@@ -7,12 +7,12 @@
     - name: Rotate the seed like wipe.sh does
       ansible.builtin.copy:
         content: 'RUST_SERVER_SEED="99999"'
-        dest: /etc/rust/server/test/seed.env
+        dest: /etc/rust/install/test/server/test/seed.env
         mode: '644'
 
     - name: Drift rust.env like an external manager would
       ansible.builtin.lineinfile:
-        path: /etc/rust/server/test/rust.env
+        path: /etc/rust/install/test/server/test/rust.env
         regexp: '^RUST_SERVER_NAME='
         line: 'RUST_SERVER_NAME="Renamed At Runtime"'
 
@@ -42,13 +42,13 @@
       register: config_dirs
       loop:
         - /etc/rust
-        - /etc/rust/server
-        - /etc/rust/server/test
-        - /etc/rust/server/test/oxide
-        - /etc/rust/server/test/oxide/plugins
-        - /etc/rust/server/test/cfg
-        - /etc/rust/server/test/RustDedicated_Data
-        - /etc/rust/server/test/RustDedicated_Data/Managed
+        - /etc/rust/install
+        - /etc/rust/install/test
+        - /etc/rust/install/test/server/test
+        - /etc/rust/install/test/oxide
+        - /etc/rust/install/test/oxide/plugins
+        - /etc/rust/install/test/RustDedicated_Data
+        - /etc/rust/install/test/RustDedicated_Data/Managed
 
     - name: Assert all directories exist
       ansible.builtin.assert:
@@ -64,9 +64,9 @@
         path: "{{ item }}"
       register: config_files
       loop:
-        - /etc/rust/server/test/rust.env
-        - /etc/rust/server/test/seed.env
-        - /etc/rust/server/test/wipe.sh
+        - /etc/rust/install/test/server/test/rust.env
+        - /etc/rust/install/test/server/test/seed.env
+        - /etc/rust/install/test/server/test/wipe.sh
 
     - name: Assert configuration files exist
       ansible.builtin.assert:
@@ -79,7 +79,7 @@
 
     - name: Verify rust.env contains expected content
       ansible.builtin.lineinfile:
-        path: /etc/rust/server/test/rust.env
+        path: /etc/rust/install/test/server/test/rust.env
         line: 'RUST_SERVER_NAME="Test Server"'
         state: present
       check_mode: true
@@ -103,7 +103,7 @@
 
     - name: Read seed.env after re-converge
       ansible.builtin.slurp:
-        src: /etc/rust/server/test/seed.env
+        src: /etc/rust/install/test/server/test/seed.env
       register: seed_env_content
 
     - name: Assert the rotated seed survived the re-run (create-only semantics)
@@ -113,7 +113,7 @@
 
     - name: Check rust.env drift was overwritten (default overwrite_env)
       ansible.builtin.lineinfile:
-        path: /etc/rust/server/test/rust.env
+        path: /etc/rust/install/test/server/test/rust.env
         line: 'RUST_SERVER_NAME="Test Server"'
         state: present
       check_mode: true
@@ -124,9 +124,9 @@
         that:
           - not rust_env_restored.changed
 
-    - name: Stat oxide directory ownership
+    - name: Stat oxide plugins directory ownership
       ansible.builtin.stat:
-        path: /etc/rust/server/test/oxide
+        path: /etc/rust/install/test/oxide/plugins
       register: oxide_dir_stat
 
     - name: Assert identity directories are owned by the runtime user
@@ -137,7 +137,7 @@
 
     - name: Stat rust.env permissions
       ansible.builtin.stat:
-        path: /etc/rust/server/test/rust.env
+        path: /etc/rust/install/test/server/test/rust.env
       register: rust_env_stat
 
     - name: Assert rust.env is 640 root:pgid (enforced even on the bootstrap path)
@@ -149,7 +149,7 @@
 
     - name: Stat the identity directory
       ansible.builtin.stat:
-        path: /etc/rust/server/test
+        path: /etc/rust/install/test/server/test
       register: identity_dir_stat
 
     - name: Assert the identity directory is group-writable and setgid

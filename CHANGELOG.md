@@ -1,6 +1,16 @@
 # Changelog
-## 0.3.1
-* **Fix 0.3.0 crash loop**: the install-root host dir moved to `/etc/rust/install/server/<identity>` — hosting it inside the identity dir made the two mounts contain each other (an infinitely deep directory cycle) and the entrypoint's recursive chown killed the container. Do not deploy 0.3.0. Hosts that ran 0.3.0 can remove the orphaned `/etc/rust/server/<identity>/install` dir after redeploying
+## 0.4.0
+* **BREAKING — one tree per server, replacing 0.3.0 (do not deploy 0.3.0: its nested install mount crash-loops the container).** Each server now lives entirely under `/etc/rust/install/<identity>` (var `rust_gameserver_install_dir`), bind-mounted at the container's `/steamcmd/rust`. The game's own layout puts the save/identity dir at `server/<identity>` inside it (var `rust_gameserver_data_dir`); `oxide/` and `RustDedicated_Data/` sit at the tree's root; `rust.env`/`seed.env`/`wipe.sh` live in the identity dir. Root-level game files — vanilla `world.rendermap` output that rustd.xyz fetches over SSH — are now host-visible. Never point two containers at one install dir: concurrent steamcmd updates conflict
+* **Migration from the `/etc/rust/server/<identity>` layout** (per server, before deploying):
+  ```
+  docker stop rust-<identity>
+  mkdir -p /etc/rust/install/<identity>/server
+  mv /etc/rust/server/<identity> /etc/rust/install/<identity>/server/<identity>
+  mv /etc/rust/install/<identity>/server/<identity>/oxide /etc/rust/install/<identity>/oxide
+  mv /etc/rust/install/<identity>/server/<identity>/RustDedicated_Data /etc/rust/install/<identity>/RustDedicated_Data
+  rm -rf /etc/rust/install/<identity>/server/<identity>/install   # 0.3.0 orphan, if present
+  ```
+  then deploy (the container is recreated; steamcmd downloads the game into the tree on first boot, ~8 GB). Point external managers (rustd.xyz) at the new paths: data path `/etc/rust/install/<identity>/server/<identity>`, map render path `/etc/rust/install/<identity>`
 
 ## 0.3.0
 * Mount the game install root on the host (`/etc/rust/server/<identity>/install`) so files the game writes to its root — e.g. vanilla `world.rendermap` output, fetched over SSH by rustd.xyz — are host-visible. First boot after adopting the mount re-downloads the game into it; saves/plugins/env mounts are unchanged

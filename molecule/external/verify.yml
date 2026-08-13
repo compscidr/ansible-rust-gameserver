@@ -6,7 +6,7 @@
   tasks:
     - name: Change the server name in rust.env
       ansible.builtin.lineinfile:
-        path: /etc/rust/server/test/rust.env
+        path: /etc/rust/install/test/server/test/rust.env
         regexp: '^RUST_SERVER_NAME='
         line: 'RUST_SERVER_NAME="Panel Managed Name"'
 
@@ -34,7 +34,7 @@
 
     - name: Check panel-drifted rust.env survived
       ansible.builtin.lineinfile:
-        path: /etc/rust/server/test/rust.env
+        path: /etc/rust/install/test/server/test/rust.env
         line: 'RUST_SERVER_NAME="Panel Managed Name"'
         state: present
       check_mode: true
@@ -47,7 +47,7 @@
 
     - name: Check seed.env still exists
       ansible.builtin.stat:
-        path: /etc/rust/server/test/seed.env
+        path: /etc/rust/install/test/server/test/seed.env
       register: seed_check
 
     - name: Assert seed.env exists (created by first run, untouched after)
