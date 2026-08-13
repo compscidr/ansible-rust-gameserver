@@ -79,6 +79,7 @@
     - /etc/rust/server/{{ rust_gameserver_identity }}/cfg
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data/Managed
+    - /etc/rust/server/{{ rust_gameserver_identity }}/install
 
 # rust.env carries RUST_RCON_PASSWORD — not world-readable. The runtime group can
 # read it (the container entrypoint and dropped game user), other host users cannot.
@@ -153,9 +154,16 @@
     image: ghcr.io/compscidr/rust-server
     pull: true
     volumes:
+      # The whole install root, host-visible per server. Files the game writes to its root —
+      # notably vanilla `world.rendermap` output, which rustd.xyz fetches over SSH — otherwise
+      # exist only in the container's writable layer. The image's entrypoint installs/updates
+      # the game into this dir on boot (first boot after adopting this mount re-downloads the
+      # game), and the narrower mounts below stack on top of it unchanged, so saves, plugins
+      # and env files stay exactly where they already are on the host.
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/install:/steamcmd/rust:rw"
       - "/etc/rust/server/{{ rust_gameserver_identity }}:/steamcmd/rust/server/{{ rust_gameserver_identity }}:rw" # persist save files
       - "/etc/rust/server/{{ rust_gameserver_identity }}/rust.env:/etc/rust/rust.env" # lets us change the env without redeploying container
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env" # lets us change the seed without redploying container
+      - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env" # lets us change the seed without redeploying container
       - "/etc/rust/server/{{ rust_gameserver_identity }}/oxide:/steamcmd/rust/oxide"  # plugins / plugin config
       - "/etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data:/steamcmd/rust/RustDedicated_Data" # dll plugins
     ports:
