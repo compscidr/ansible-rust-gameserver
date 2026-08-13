@@ -10,7 +10,7 @@
     group: root
   loop:
     - /etc/rust
-    - /etc/rust/server
+    - /etc/rust/install
 
 # The identity directory itself is where an external manager (rustd.xyz) does its
 # work: it creates snapshot subdirectories, rewrites seed.env and deletes map/save
@@ -51,20 +51,11 @@
   loop: "{{ rust_gameserver_manager_users }}"
   when: rust_gameserver_manager_users | length > 0
 
-- name: Create the server identity directory
-  tags: rust_gameserver
-  become: true
-  ansible.builtin.file:
-    path: /etc/rust/server/{{ rust_gameserver_identity }}
-    state: directory
-    mode: "{{ rust_gameserver_identity_dir_mode }}"
-    owner: "{{ rust_gameserver_puid }}"
-    group: "{{ rust_gameserver_pgid }}"
-
-# Per-identity directories are owned by the container's runtime user (PUID/PGID):
-# Oxide and the game server run as that uid and need to CREATE files here (plugin
-# data, compiled artifacts, config rewrites) — root-owned 755 dirs break that.
-- name: Create server identity directories (owned by the runtime user)
+# The install root and its server/ parent come first so their ownership is deliberate:
+# the container's runtime user must be able to CREATE game files here (steamcmd writes
+# the whole install), and letting them appear as implicit parents of the identity dir
+# would leave them root-owned.
+- name: Create the install root (owned by the runtime user)
   tags: rust_gameserver
   become: true
   ansible.builtin.file:
@@ -74,12 +65,35 @@
     owner: "{{ rust_gameserver_puid }}"
     group: "{{ rust_gameserver_pgid }}"
   loop:
-    - /etc/rust/server/{{ rust_gameserver_identity }}/oxide
-    - /etc/rust/server/{{ rust_gameserver_identity }}/oxide/plugins
-    - /etc/rust/server/{{ rust_gameserver_identity }}/cfg
-    - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data
-    - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data/Managed
-    - /etc/rust/server/{{ rust_gameserver_identity }}/install
+    - "{{ rust_gameserver_install_dir }}"
+    - "{{ rust_gameserver_install_dir }}/server"
+
+- name: Create the server identity directory
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ rust_gameserver_data_dir }}"
+    state: directory
+    mode: "{{ rust_gameserver_identity_dir_mode }}"
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+
+# Everything else inside the install tree is created by the game/Oxide at runtime —
+# these two exist ONLY so plugins can be copied in (the README's documented pattern)
+# on a fresh host BEFORE the first boot has extracted Oxide; ansible's copy module
+# does not create parent directories.
+- name: Create plugin copy-in directories (owned by the runtime user)
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '755'
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+  loop:
+    - "{{ rust_gameserver_install_dir }}/oxide/plugins"
+    - "{{ rust_gameserver_install_dir }}/RustDedicated_Data/Managed"
 
 # rust.env carries RUST_RCON_PASSWORD — not world-readable. The runtime group can
 # read it (the container entrypoint and dropped game user), other host users cannot.
@@ -88,7 +102,7 @@
   become: true
   ansible.builtin.template:
     src: rust.env.j2
-    dest: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
+    dest: "{{ rust_gameserver_data_dir }}/rust.env"
     mode: '640'
     owner: root
     group: "{{ rust_gameserver_pgid }}"
@@ -101,7 +115,7 @@
   tags: rust_gameserver
   become: true
   ansible.builtin.file:
-    path: /etc/rust/server/{{ rust_gameserver_identity }}/rust.env
+    path: "{{ rust_gameserver_data_dir }}/rust.env"
     mode: '640'
     owner: root
     group: "{{ rust_gameserver_pgid }}"
@@ -114,7 +128,7 @@
   become: true
   ansible.builtin.template:
     src: seed.env.j2
-    dest: /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
+    dest: "{{ rust_gameserver_data_dir }}/seed.env"
     mode: '644'
     owner: root
     group: root
@@ -125,7 +139,7 @@
   become: true
   ansible.builtin.template:
     src: wipe.sh.j2
-    dest: /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh
+    dest: "{{ rust_gameserver_data_dir }}/wipe.sh"
     mode: '644'
     owner: root
     group: root
@@ -139,7 +153,7 @@
   become: true
   ansible.builtin.cron:
     name: "rust_wipe_{{ rust_gameserver_identity }}"
-    job: "bash /etc/rust/server/{{ rust_gameserver_identity }}/wipe.sh"
+    job: "bash {{ rust_gameserver_data_dir }}/wipe.sh"
     cron_file: "rust_wipe_{{ rust_gameserver_identity }}"
     minute: "{{ rust_gameserver_wipe_minute_of_hour }}"
     hour: "{{ rust_gameserver_wipe_hour_of_day }}"
@@ -154,18 +168,22 @@
     image: ghcr.io/compscidr/rust-server
     pull: true
     volumes:
-      # The whole install root, host-visible per server. Files the game writes to its root —
-      # notably vanilla `world.rendermap` output, which rustd.xyz fetches over SSH — otherwise
-      # exist only in the container's writable layer. The image's entrypoint installs/updates
-      # the game into this dir on boot (first boot after adopting this mount re-downloads the
-      # game), and the narrower mounts below stack on top of it unchanged, so saves, plugins
-      # and env files stay exactly where they already are on the host.
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/install:/steamcmd/rust:rw"
-      - "/etc/rust/server/{{ rust_gameserver_identity }}:/steamcmd/rust/server/{{ rust_gameserver_identity }}:rw" # persist save files
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/rust.env:/etc/rust/rust.env" # lets us change the env without redeploying container
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env" # lets us change the seed without redeploying container
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/oxide:/steamcmd/rust/oxide"  # plugins / plugin config
-      - "/etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data:/steamcmd/rust/RustDedicated_Data" # dll plugins
+      # ONE mount: the whole install root, host-visible per server. The game's own layout
+      # places everything about this server inside it — binaries, oxide/, saves at
+      # server/<identity>/ — so files the game writes to its root (notably vanilla
+      # `world.rendermap` output, which rustd.xyz fetches over SSH) exist on the host at
+      # the same relative paths. The image's entrypoint installs/updates the game into
+      # this dir on boot; the first boot after adopting the mount downloads the game.
+      #
+      # Never point two containers at the same install dir: concurrent steamcmd updates
+      # and runtime state conflict. Per-server dirs are the whole point of this layout.
+      - "{{ rust_gameserver_install_dir }}:/steamcmd/rust:rw"
+      # The entrypoint sources these from /etc/rust/*.env inside the container; the file
+      # binds let a seed or env change apply on the next container restart without a
+      # redeploy. They live in the identity dir so the panel's wipe flow (which rewrites
+      # seed.env inside its data path) keeps working.
+      - "{{ rust_gameserver_data_dir }}/rust.env:/etc/rust/rust.env"
+      - "{{ rust_gameserver_data_dir }}/seed.env:/etc/rust/seed.env"
     ports:
       - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}"
       - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}/udp"

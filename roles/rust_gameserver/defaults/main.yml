@@ -68,3 +68,14 @@ rust_gameserver_manager_users: []
 # on files it replaces — without it, `sed -i` on seed.env hands the file to the
 # manager's own group and the container can no longer read its own seed.
 rust_gameserver_identity_dir_mode: '0755'
+
+# Where a server's ENTIRE tree lives on the host: the game install root, mounted at
+# /steamcmd/rust in the container. The game's own layout nests the identity (save) dir
+# at server/<identity> inside it, so everything about one server — binaries, plugins,
+# saves, env files — sits under this one directory. Per-server on purpose: install
+# directories cannot be shared between containers (concurrent steamcmd updates and
+# runtime state conflict).
+rust_gameserver_install_dir: "/etc/rust/install/{{ rust_gameserver_identity }}"
+# The identity (save) dir inside the install root — where wipes delete files, seed.env
+# and rust.env live, and an external manager (rustd.xyz) works.
+rust_gameserver_data_dir: "{{ rust_gameserver_install_dir }}/server/{{ rust_gameserver_identity }}"

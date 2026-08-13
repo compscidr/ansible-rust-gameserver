@@ -4,16 +4,16 @@
 # https://www.bisecthosting.com/clients/index.php?rp=/knowledgebase/618/How-to-setup-automatic-server-wipes-on-a-Rust-server.html
 wipe() {
   docker stop rust-{{ rust_gameserver_identity }}
-  rm -f /etc/rust/server/{{ rust_gameserver_identity }}/player.deaths.*
-  rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.map
-  rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.sav*
+  rm -f {{ rust_gameserver_data_dir }}/player.deaths.*
+  rm -f {{ rust_gameserver_data_dir }}/*.map
+  rm -f {{ rust_gameserver_data_dir }}/*.sav*
 
   if [ {{ rust_gameserver_wipe_bp }} -eq 1 ]; then
-    rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.states
-    rm -f /etc/rust/server/{{ rust_gameserver_identity }}/*.blueprints.*
+    rm -f {{ rust_gameserver_data_dir }}/*.states
+    rm -f {{ rust_gameserver_data_dir }}/*.blueprints.*
   fi
 
-  sudo sed -i~ '/^RUST_SERVER_SEED=/s/=.*/='$RANDOM'/' /etc/rust/server/{{ rust_gameserver_identity }}/seed.env
+  sudo sed -i~ '/^RUST_SERVER_SEED=/s/=.*/='$RANDOM'/' {{ rust_gameserver_data_dir }}/seed.env
   docker start rust-{{ rust_gameserver_identity }}
 }
 
