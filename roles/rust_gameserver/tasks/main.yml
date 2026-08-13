@@ -79,7 +79,7 @@
     - /etc/rust/server/{{ rust_gameserver_identity }}/cfg
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data
     - /etc/rust/server/{{ rust_gameserver_identity }}/RustDedicated_Data/Managed
-    - /etc/rust/install/{{ rust_gameserver_identity }}
+    - /etc/rust/install/server/{{ rust_gameserver_identity }}
 
 # rust.env carries RUST_RCON_PASSWORD — not world-readable. The runtime group can
 # read it (the container entrypoint and dropped game user), other host users cannot.
@@ -166,7 +166,7 @@
       # under the identity dir makes each visible inside the other — an infinitely deep
       # directory cycle that the entrypoint's recursive chown walks until the container dies
       # (the 0.3.0 bug).
-      - "/etc/rust/install/{{ rust_gameserver_identity }}:/steamcmd/rust:rw"
+      - "/etc/rust/install/server/{{ rust_gameserver_identity }}:/steamcmd/rust:rw"
       - "/etc/rust/server/{{ rust_gameserver_identity }}:/steamcmd/rust/server/{{ rust_gameserver_identity }}:rw" # persist save files
       - "/etc/rust/server/{{ rust_gameserver_identity }}/rust.env:/etc/rust/rust.env" # lets us change the env without redeploying container
       - "/etc/rust/server/{{ rust_gameserver_identity }}/seed.env:/etc/rust/seed.env" # lets us change the seed without redeploying container
