@@ -23,6 +23,12 @@ rust_gameserver_url: https://discord.gg/t77M3yAgKu
 # imgbox, which went down and left every server that took the default with a broken
 # banner. files/server-default.jpg is not copied anywhere by the role — it exists
 # solely so this URL has something to resolve to.
+#
+# Deliberately pinned to `main` rather than a release tag: the banner is cosmetic
+# and unversioned, and a moving ref means a future replacement (or a fix to a
+# broken one) reaches every already-released version without a release. A tag
+# would freeze that, and would have to be hand-updated on every version bump —
+# with the forgotten case silently serving the old image forever.
 rust_gameserver_banner_url: https://raw.githubusercontent.com/compscidr/ansible-rust-gameserver/main/roles/rust_gameserver/files/server-default.jpg
 rust_gameserver_wipe_day_of_week: 4
 rust_gameserver_wipe_hour_of_day: 19

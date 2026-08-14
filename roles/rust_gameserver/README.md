@@ -45,7 +45,7 @@ rust_gameserver_app_port                | Rust+ app port
 rust_gameserver_oxide_enabled           | Whether or not oxide should be enabled
 rust_gameserver_oxide_update_on_boot    | Whether or not oxide should be updated on startup
 rust_gameserver_url                     | A url for a website or discord server
-rust_gameserver_banner_url              | A url for the background banner for the server browser. Defaults to `files/server-default.jpg` in this repo, served over `raw.githubusercontent.com`
+rust_gameserver_banner_url              | A url for the background banner for the server browser. Defaults to `roles/rust_gameserver/files/server-default.jpg` in this repo, served over `raw.githubusercontent.com`
 rust_gameserver_wipe_day_of_week        | The day of the week the server wipes on (see: https://wiki.facepunch.com/rust/server-wipe-timer)
 rust_gameserver_wipe_hour_of_day        | The time of day the server wipes on
 rust_gameserver_wipe_minute_of_hour     | The minute of the hour the wipe cron fires (default `0`). Without this, the cron's `minute` field defaults to `*` and would fire every minute of the wipe hour.
