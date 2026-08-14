@@ -79,9 +79,11 @@
 
     # The regression test for the single-file bind mount. rustd.xyz rewrites these two files
     # IN PLACE so the container's mount (which follows the inode, not the path) keeps pointing
-    # at the live data — and an in-place rewrite needs write permission on the FILE. With 640
-    # root:root the manager could only replace the file, which orphans the mount and silently
-    # strands the container on the original inode.
+    # at the live data — and an in-place rewrite needs write permission on the FILE.
+    #
+    # Without group write (rust.env was 640 root:<pgid>, seed.env 644 root:root) the manager can
+    # only replace the file, which orphans the mount and silently strands the container on the
+    # original inode.
     #
     # Asserted on the mode bits rather than "the manager can write", because the manager user
     # does not exist in this scenario; the group grant is what makes it possible.
@@ -175,10 +177,10 @@
         path: /etc/rust/install/test/server/test/rust.env
       register: rust_env_stat
 
-    - name: Assert rust.env is 640 root:pgid (enforced even on the bootstrap path)
+    - name: Assert rust.env is 660 root:pgid (enforced even on the bootstrap path)
       ansible.builtin.assert:
         that:
-          - rust_env_stat.stat.mode == '0640'
+          - rust_env_stat.stat.mode == '0660'
           - rust_env_stat.stat.uid == 0
           - rust_env_stat.stat.gid == 1000
 

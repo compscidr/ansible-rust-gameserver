@@ -57,7 +57,7 @@ rust_gameserver_healthcheck_disabled    | Set to `true` to override the image's 
 rust_gameserver_manage_wipe_cron        | Whether this role installs the wipe cron + `wipe.sh` (default `true`). Set `false` when an external manager (e.g. rustd.xyz) owns wipes — the cron is removed. See "Management modes" below.
 rust_gameserver_overwrite_env           | Whether `rust.env` is re-templated on every run (default `true`). Set `false` to make it bootstrap-only so runtime-managed settings survive deploys. See "Management modes" below.
 rust_gameserver_puid                    | Runtime uid the container drops to (default `"1000"`); also owns the per-identity config directories and is used for file ownership
-rust_gameserver_pgid                    | Runtime gid (default `"1000"`); also the group on `rust.env` (mode 640) so the runtime user can read the RCON password while other host users cannot
+rust_gameserver_pgid                    | Runtime gid (default `"1000"`); also the group on `rust.env` (mode 660) and `seed.env` (mode 664), so the runtime user can read the RCON password while other host users cannot, and an external manager in this group can rewrite both in place — see "Why `rust.env` and `seed.env` are group-writable"
 
 ## Management modes
 
