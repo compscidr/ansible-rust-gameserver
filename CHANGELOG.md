@@ -1,4 +1,6 @@
 # Changelog
+## 0.4.2
+* **The default `rust_gameserver_banner_url` now points at an image in this repo** (`roles/rust_gameserver/files/server-default.jpg`, served over `raw.githubusercontent.com`) instead of imgbox, which went down and left every server that took the default showing a broken banner in the server browser. The file is not copied anywhere by the role — it exists only so the URL resolves. Servers that set their own banner are unaffected
 ## 0.4.1
 * **`rust.env` and `seed.env` are now group-writable (`660` / `664`) for the runtime group.** Both are bind-mounted into the container as single files, and a single-file bind mount follows the *inode*, not the path — so an external manager that rewrites them with `sed -i` (or any write-temp-then-rename) replaces the inode and orphans the mount. The container then reads the original file forever while the write reports success. This silently cost rustd.xyz every seed change it made: wipes kept regenerating the same map. Writing in place fixes it, and that needs write permission on the file rather than just the directory
 * `rust.env` stays non-world-readable — `RUST_RCON_PASSWORD` is still protected. Group write is not an escalation: the identity dir is already group-writable, so a manager in the runtime group could already replace these files
