@@ -57,7 +57,7 @@ rust_gameserver_healthcheck_disabled    | Set to `true` to override the image's 
 rust_gameserver_manage_wipe_cron        | Whether this role installs the wipe cron + `wipe.sh` (default `true`). Set `false` when an external manager (e.g. rustd.xyz) owns wipes — the cron is removed. See "Management modes" below.
 rust_gameserver_overwrite_env           | Whether `rust.env` is re-templated on every run (default `true`). Set `false` to make it bootstrap-only so runtime-managed settings survive deploys. See "Management modes" below.
 rust_gameserver_puid                    | Runtime uid the container drops to (default `"1000"`); also owns the per-identity config directories and is used for file ownership
-rust_gameserver_pgid                    | Runtime gid (default `"1000"`); also the group on `rust.env` (mode 640) so the runtime user can read the RCON password while other host users cannot
+rust_gameserver_pgid                    | Runtime gid (default `"1000"`); also the group on `rust.env` (mode 660) and `seed.env` (mode 664), so the runtime user can read the RCON password while other host users cannot, and an external manager in this group can rewrite both in place — see "Why `rust.env` and `seed.env` are group-writable"
 
 ## Management modes
 
@@ -73,3 +73,31 @@ rust_gameserver_overwrite_env: false     # rust.env written once at install, nev
 `seed.env` is always create-only regardless of these flags: the wipe script and
 external managers both rotate the seed at runtime, and a deploy must never
 revert it (that would change the map on the next restart).
+
+### Why `rust.env` and `seed.env` are group-writable
+
+Both files are bind-mounted into the container as **single files**, and a single-file
+bind mount follows the **inode**, not the path. An external manager that rewrites one
+the easy way — `sed -i`, or anything that writes a temp file and renames over the
+target — only needs write permission on the *directory*, but it replaces the inode.
+The mount is then orphaned: the container goes on reading the original file and never
+sees another update, while the write keeps reporting success.
+
+That is not hypothetical. It silently cost rustd.xyz every seed change it made — wipes
+kept regenerating the same map, because each new seed landed in a file nothing was
+reading.
+
+So a manager has to rewrite these two in place (truncate and rewrite the same inode),
+which needs write permission on the **file**. Hence:
+
+| file | mode | why |
+|--|--|--|
+| `rust.env` | `660` | group write for in-place rewrite; never world-readable (`RUST_RCON_PASSWORD`) |
+| `seed.env` | `664` | same, and not secret, so it keeps the world-read bit |
+
+Group write is not an escalation: the identity directory is already group-writable
+(`rust_gameserver_identity_dir_mode`, default `2775`), so a manager in the runtime group
+could already replace these files. This only lets it do the *correct* thing instead.
+
+Existing installs are retrofitted — the mode is enforced by a separate attributes-only
+task, because `force: false` skips mode and group on a file that already exists.

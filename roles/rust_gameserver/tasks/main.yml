@@ -18,13 +18,20 @@
 # of creating its children — is what makes `rust_gameserver_identity_dir_mode` mean
 # anything.
 #
-# SETGID (the leading 2 in 2775) is load-bearing when a manager user writes here, and
-# is the reason this is a directory mode rather than a per-file grant: `sed -i` on
-# seed.env does not edit in place, it writes a temp file and renames over the target.
-# The replacement is owned by whoever ran it, and WITHOUT setgid it lands in that
-# user's own group — at which point the container (which runs as PGID and reads
-# seed.env by group) can no longer read its own seed. Setgid keeps the runtime group
-# on anything created here, so that failure cannot happen.
+# SETGID (the leading 2 in 2775) keeps the runtime group on anything created here, so a
+# file a manager user creates stays readable by the container (which runs as PGID).
+#
+# The directory mode alone is NOT sufficient for rust.env and seed.env, and this is the
+# subtle part. Both are bind-mounted into the container as SINGLE FILES, and a single-file
+# bind mount follows the INODE, not the path. A manager that rewrites them the easy way
+# (`sed -i`, or any write-temp-then-rename) only needs directory write — but it replaces
+# the inode, orphaning the mount, and the container then reads the original file forever.
+# That silently cost rustd.xyz every seed change it ever made: wipes kept regenerating the
+# same map because the new seed landed in a file nothing was reading.
+#
+# So the manager must write these two files IN PLACE (truncate and rewrite the same inode),
+# and that needs write permission on the FILE, not just the directory. Hence the explicit
+# group-write modes below rather than relying on the directory grant.
 # An external wipe manager (rustd.xyz) needs to create, rewrite and delete files in
 # the identity directory. It deliberately does NOT get root: everything it does is
 # confined to that one tree, and the server lifecycle it drives goes over RCON rather
@@ -103,7 +110,10 @@
   ansible.builtin.template:
     src: rust.env.j2
     dest: "{{ rust_gameserver_data_dir }}/rust.env"
-    mode: '640'
+    # 660, not 640: the manager user must rewrite this in place (see the inode note above).
+    # Group-write is not an escalation — the identity dir is already group-writable, so a
+    # manager could already replace this file; it stays non-world-readable for RUST_RCON_PASSWORD.
+    mode: '660'
     owner: root
     group: "{{ rust_gameserver_pgid }}"
     force: "{{ rust_gameserver_overwrite_env }}"
@@ -116,7 +126,7 @@
   become: true
   ansible.builtin.file:
     path: "{{ rust_gameserver_data_dir }}/rust.env"
-    mode: '640'
+    mode: '660'
     owner: root
     group: "{{ rust_gameserver_pgid }}"
 
@@ -129,10 +139,24 @@
   ansible.builtin.template:
     src: seed.env.j2
     dest: "{{ rust_gameserver_data_dir }}/seed.env"
-    mode: '644'
+    # 664 + runtime group for the same in-place-rewrite reason as rust.env. Not secret, so
+    # it keeps the world-read bit it has always had.
+    mode: '664'
     owner: root
-    group: root
+    group: "{{ rust_gameserver_pgid }}"
     force: false
+
+# Same retrofit as rust.env, and for the same reason: `force: false` above skips mode and
+# group on an existing file, so without this every install created before this change keeps
+# 644 root:root and the manager still cannot rewrite the seed in place.
+- name: Enforce seed.env permissions
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ rust_gameserver_data_dir }}/seed.env"
+    mode: '664'
+    owner: root
+    group: "{{ rust_gameserver_pgid }}"
 
 - name: Copy wipe.sh to host
   tags: rust_gameserver
