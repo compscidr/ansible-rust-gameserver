@@ -25,7 +25,7 @@
         rust_gameserver_identity: "alpha"
         rust_gameserver_name: "Alpha"
         rust_gameserver_description: "First bare-metal instance"
-        rust_gameserver_rcon_password: "alphapass"
+        rust_gameserver_rcon_password: "al pha;touch /tmp/pwned-alpha"
         rust_gameserver_runtime_user: "rustsvc"
         rust_gameserver_manager_users:
           - "molecule_manager"

@@ -68,6 +68,60 @@
           The RCON password was templated into start.sh. It belongs in rust.env, which is
           mode 660, so the launcher stays readable without leaking the password.
 
+    # A password with a space or $(...) must be inert when the launcher sources rust.env.
+    # Unquoted, it would either break startup or execute as the runtime user.
+    - name: Read both rust.env files
+      ansible.builtin.slurp:
+        src: "/etc/rust/install/{{ item }}/server/{{ item }}/rust.env"
+      register: envs
+      loop: [alpha, beta]
+
+    # alpha's RCON password is deliberately "al pha;touch /tmp/pwned-alpha" -- it needs quoting
+    # to be safe. Sourcing the file must yield it VERBATIM and run nothing. `| quote` is
+    # shlex.quote, which only adds quotes when required, so asserting on the presence of a quote
+    # character would be wrong; the property is what happens when the file is sourced.
+    - name: Source alpha's rust.env the way the launcher does
+      ansible.builtin.shell:
+        cmd: >-
+          set -a; . /etc/rust/install/alpha/server/alpha/rust.env; set +a;
+          printf '%s' "$RUST_RCON_PASSWORD"
+      register: sourced_password
+      changed_when: false
+
+    - name: Stat the file an injected command would have created
+      ansible.builtin.stat:
+        path: /tmp/pwned-alpha
+      register: pwned
+
+    - name: Assert a password needing quotes survives intact and executes nothing
+      ansible.builtin.assert:
+        that:
+          - sourced_password.stdout == 'al pha;touch /tmp/pwned-alpha'
+          - not pwned.stat.exists
+        fail_msg: >-
+          rust.env is not shell-safe: sourcing it produced
+          '{{ sourced_password.stdout }}'{{ ' and ran an injected command' if pwned.stat.exists else '' }}.
+          This file is sourced by the bare-metal launcher and by the image healthcheck AS ROOT.
+
+    - name: Assert rust.env ends with a newline
+      ansible.builtin.assert:
+        that:
+          - (item.content | b64decode).endswith('\n')
+        fail_msg: >-
+          {{ item.item }}'s rust.env has no trailing newline, so anything appending a key to it
+          welds that key onto the last line.
+      loop: "{{ envs.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Assert the launcher fails loudly on a missing RCON password
+      ansible.builtin.assert:
+        that:
+          - "'did not set RUST_RCON_PASSWORD' in (launchers.results[0].content | b64decode)"
+        fail_msg: >-
+          start.sh relies on `set -u` for a missing password, which fails with a bare
+          "unbound variable" and no hint about which file is wrong.
+
     - name: Read both units
       ansible.builtin.slurp:
         src: "/etc/systemd/system/rust-{{ item }}.service"

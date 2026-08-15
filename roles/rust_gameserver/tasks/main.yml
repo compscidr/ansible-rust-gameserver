@@ -98,12 +98,17 @@
   when: rust_gameserver_runtime_user | length > 0
 
 # Numeric mode: we still need the NAME to check it against the manager users below.
+# fail_key: false because the uid need not exist on the HOST at all -- in a container-only
+# deployment it only has to exist inside the image. An unresolvable uid is not an error here;
+# it just means there is no name to compare against the manager users, and no account to
+# become for a bare-metal launch. Both of those are handled where they matter.
 - name: Resolve the runtime user's name from its uid
   tags: rust_gameserver
   become: true
   ansible.builtin.getent:
     database: passwd
     key: "{{ rust_gameserver_puid }}"
+    fail_key: false
   when: rust_gameserver_runtime_user | length == 0
 
 - name: Record which account the game will run as
@@ -112,7 +117,8 @@
     rust_gameserver_runtime_user_name: >-
       {{ rust_gameserver_runtime_user
          if rust_gameserver_runtime_user | length > 0
-         else (ansible_facts.getent_passwd | first) }}
+         else (ansible_facts.getent_passwd | dict2items
+               | selectattr('value', 'ne', None) | map(attribute='key') | first | default('')) }}
 
 # The check that would have caught it. When the game runs as one of the manager users,
 # every permission decision in this role becomes a no-op: the manager owns the files
@@ -136,7 +142,9 @@
       grant nothing and the manager can read the RCON password from the game's process
       arguments. Set rust_gameserver_runtime_user to a dedicated account (the role will create
       it) and chown the install tree to it.
-  when: rust_gameserver_manager_users | length > 0
+  when:
+    - rust_gameserver_manager_users | length > 0
+    - rust_gameserver_runtime_user_name | length > 0
 
 - name: Create base config directories
   tags: rust_gameserver

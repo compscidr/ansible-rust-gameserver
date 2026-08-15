@@ -9,6 +9,45 @@
 # warning that applies there: two servers must never share an install dir, because
 # steamcmd updates and runtime state conflict. It costs 20-30 GB per instance.
 
+# Bare metal is Debian + systemd only. Everything below assumes apt and systemctl, so say so
+# once here rather than failing three tasks later on a missing package or a unit that nothing
+# will ever start.
+- name: Reject an unsupported bare-metal host
+  tags: rust_gameserver
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == "Debian"
+    fail_msg: >-
+      Bare-metal deployment supports Debian-family hosts with systemd; this host is
+      {{ ansible_os_family }}. Use rust_gameserver_deployment: docker instead.
+
+# become_user needs a real account. In numeric mode the uid may not resolve on the host at
+# all, which is fine for a container but leaves nothing to run the game as here.
+- name: Require a resolvable runtime account
+  tags: rust_gameserver
+  ansible.builtin.assert:
+    that:
+      - rust_gameserver_runtime_user_name | length > 0
+    fail_msg: >-
+      No host account resolves for uid {{ rust_gameserver_puid }}, so there is nothing to run
+      the server as. Set rust_gameserver_runtime_user to a name and the role will create it.
+
+- name: Read the runtime account's home directory
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ rust_gameserver_runtime_user_name }}"
+
+- name: Decide where steamclient.so goes
+  tags: rust_gameserver
+  ansible.builtin.set_fact:
+    rust_gameserver_steam_sdk_path: >-
+      {{ rust_gameserver_steam_sdk_dir
+         if rust_gameserver_steam_sdk_dir | length > 0
+         else (ansible_facts.getent_passwd[rust_gameserver_runtime_user_name][4]
+               ~ '/.steam/sdk64') }}
+
 - name: Install steamcmd prerequisites
   tags: rust_gameserver
   become: true
@@ -70,7 +109,7 @@
   tags: rust_gameserver
   become: true
   ansible.builtin.file:
-    path: "{{ rust_gameserver_steam_sdk_dir }}"
+    path: "{{ rust_gameserver_steam_sdk_path }}"
     state: directory
     mode: '755'
     owner: "{{ rust_gameserver_puid }}"
@@ -81,7 +120,7 @@
   become: true
   ansible.builtin.file:
     src: "{{ rust_gameserver_steamcmd_dir }}/linux64/steamclient.so"
-    dest: "{{ rust_gameserver_steam_sdk_dir }}/steamclient.so"
+    dest: "{{ rust_gameserver_steam_sdk_path }}/steamclient.so"
     state: link
     force: true
     owner: "{{ rust_gameserver_puid }}"

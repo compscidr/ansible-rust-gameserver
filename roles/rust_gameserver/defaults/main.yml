@@ -97,7 +97,10 @@ rust_gameserver_deployment: docker
 # Bare metal only. steamcmd is shared by every instance on the host; installing it is
 # idempotent, so running the role for a second identity does not re-fetch it.
 rust_gameserver_steamcmd_dir: /opt/steamcmd
-rust_gameserver_steam_sdk_dir: /home/{{ rust_gameserver_runtime_user | default('rust', true) }}/.steam/sdk64
+# Left empty so the role derives it from the runtime account's REAL home directory. Guessing
+# /home/<name> puts steamclient.so somewhere Steamworks never looks, and the symptom is a
+# server that starts and then quietly fails to reach Steam. Set it only to override.
+rust_gameserver_steam_sdk_dir: ""
 rust_gameserver_service_enabled: true
 # See the note in the unit template: an RCON restart exits the process, so without a
 # restart policy nothing brings the server back.

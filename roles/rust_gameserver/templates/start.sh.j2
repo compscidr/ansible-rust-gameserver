@@ -40,6 +40,13 @@ if [ -z "${RUST_SERVER_SEED:-}" ]; then
   exit 1
 fi
 
+# Checked explicitly rather than left to `set -u` below, which would fail with a bare
+# "RUST_RCON_PASSWORD: unbound variable" and no hint about which file is wrong.
+if [ -z "${RUST_RCON_PASSWORD:-}" ]; then
+  echo "FATAL: ${ENV_FILE} did not set RUST_RCON_PASSWORD" >&2
+  exit 1
+fi
+
 exec {{ rust_gameserver_install_dir }}/RustDedicated -batchmode -nographics \
   +server.identity "{{ rust_gameserver_identity }}" \
   +server.hostname "${RUST_SERVER_NAME:-Rust}" \

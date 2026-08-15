@@ -5,6 +5,8 @@
 * The bare-metal launcher SOURCES `rust.env` and `seed.env` rather than having values templated into it, matching the container. Without that, a panel metadata edit would survive only until the next deploy reverted it, and the seed could not be rotated by a wipe
 * `wipe.sh` drives `systemctl` instead of `docker` on bare metal
 * The systemd unit ships `Restart=always` with `RestartSec=10`: an RCON `restart` is a delayed SHUTDOWN, so without a restart policy nothing brings the server back and every unattended feature that restarts it silently breaks
+* **`rust.env` and `seed.env` values are now shell-quoted.** Both files are SOURCED -- by the container entrypoint, by the image healthcheck as root, and now by the bare-metal launcher -- and `RUST_RCON_PASSWORD` was written unquoted. A password containing a space or `$(...)` would break startup or execute. Proven by a molecule case that gives a server a password needing quotes and asserts sourcing it runs nothing
+* Both env templates now end with a newline, so anything appending a key cannot weld it onto the last line
 * New `baremetal` molecule scenario deploying TWO instances on one host, asserting they do not collide and that the launcher, unit and wipe script are each identity-scoped
 ## 0.5.0
 * **The role can now own the game's runtime identity.** Set `rust_gameserver_runtime_user` (and optionally `_group`) to a NAME and the role ensures that account and group exist and adopts their real uid/gid. Existing accounts are looked up, never modified -- point it at `steam` on a host that already uses it and nothing about that account changes
