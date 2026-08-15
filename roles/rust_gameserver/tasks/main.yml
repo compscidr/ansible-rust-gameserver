@@ -1,4 +1,87 @@
 ---
+# --- Runtime identity ---------------------------------------------------------------
+# Everything below this point -- file ownership, the setgid identity directory, the group
+# an external manager is added to, the container's PUID/PGID -- hangs off one question:
+# WHICH account does the game run as. Resolve it first so the answer is explicit rather
+# than whatever uid 1000 happens to mean on this host.
+#
+# Named mode ensures the account exists and adopts its real ids. Existing accounts are
+# looked up, never modified: no shell, home or group is imposed on an account this role
+# did not create, because adopting `steam` on a host that already uses it must not
+# silently change how someone logs in.
+- name: Ensure the runtime group exists
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.group:
+    name: "{{ rust_gameserver_runtime_group }}"
+    system: true
+    state: present
+  register: rust_gameserver_group_result
+  when: rust_gameserver_runtime_user | length > 0
+
+- name: Ensure the runtime user exists
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.user:
+    name: "{{ rust_gameserver_runtime_user }}"
+    group: "{{ rust_gameserver_runtime_group }}"
+    system: true
+    create_home: false
+    state: present
+  register: rust_gameserver_user_result
+  when: rust_gameserver_runtime_user | length > 0
+
+- name: Adopt the runtime identity's real uid and gid
+  tags: rust_gameserver
+  ansible.builtin.set_fact:
+    rust_gameserver_puid: "{{ rust_gameserver_user_result.uid }}"
+    rust_gameserver_pgid: "{{ rust_gameserver_group_result.gid }}"
+  when: rust_gameserver_runtime_user | length > 0
+
+# Numeric mode: we still need the NAME to check it against the manager users below.
+- name: Resolve the runtime user's name from its uid
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ rust_gameserver_puid }}"
+  when:
+    - rust_gameserver_runtime_user | length == 0
+    - rust_gameserver_manager_users | length > 0
+
+- name: Record which account the game will run as
+  tags: rust_gameserver
+  ansible.builtin.set_fact:
+    rust_gameserver_runtime_user_name: >-
+      {{ rust_gameserver_runtime_user
+         if rust_gameserver_runtime_user | length > 0
+         else (ansible_facts.getent_passwd | first) }}
+  when: rust_gameserver_manager_users | length > 0
+
+# The check that would have caught it. When the game runs as one of the manager users,
+# every permission decision in this role becomes a no-op: the manager owns the files
+# outright, so group write grants nothing, the setgid directory grants nothing, and
+# adding the manager to "the runtime group" adds it to its own group. The deployment
+# appears to work and its security properties are entirely absent -- and on top of that
+# the manager can read the RCON password out of the game's /proc entry, which is the one
+# thing running it as a separate account would have prevented.
+#
+# Refused rather than warned: a warning in a play that goes on to succeed is a warning
+# nobody reads.
+- name: Refuse to run the game as one of the manager users
+  tags: rust_gameserver
+  ansible.builtin.assert:
+    that:
+      - rust_gameserver_runtime_user_name not in rust_gameserver_manager_users
+    fail_msg: >-
+      The game would run as '{{ rust_gameserver_runtime_user_name }}', which is also in
+      rust_gameserver_manager_users. An external manager must be a DIFFERENT account from the
+      one the game runs as, or the group-write permissions and the setgid identity directory
+      grant nothing and the manager can read the RCON password from the game's process
+      arguments. Set rust_gameserver_runtime_user to a dedicated account (the role will create
+      it) and chown the install tree to it.
+  when: rust_gameserver_manager_users | length > 0
+
 - name: Create base config directories
   tags: rust_gameserver
   become: true
