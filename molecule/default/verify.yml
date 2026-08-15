@@ -170,18 +170,27 @@
           - not manager_writable_files.results[0].stat.roth
         fail_msg: rust.env carries RUST_RCON_PASSWORD and must never be world-readable
 
-    - name: Verify rust.env contains expected content
-      ansible.builtin.lineinfile:
-        path: /etc/rust/install/test/server/test/rust.env
-        line: 'RUST_SERVER_NAME="Test Server"'
-        state: present
-      check_mode: true
-      register: rust_env_check
+    # Asserted by SOURCING rather than by matching bytes. rust.env values are shell-quoted with
+    # `| quote` (shlex.quote), which quotes only when the value needs it -- so a literal-text
+    # assertion pins an incidental format and breaks the moment a value does or does not need
+    # quoting. What matters is the value the entrypoint ends up with.
+    - name: Source rust.env the way the entrypoint does
+      ansible.builtin.shell:
+        cmd: >-
+          set -a; . /etc/rust/install/test/server/test/rust.env; set +a;
+          printf '%s' "$RUST_SERVER_NAME"
+      register: sourced_name
+      changed_when: false
 
-    - name: Assert rust.env has correct content
+    - name: Assert rust.env carries the configured server name
       ansible.builtin.assert:
         that:
-          - not rust_env_check.changed
+          - sourced_name.stdout == 'Test Server'
+        fail_msg: >-
+          rust.env sourced to '{{ sourced_name.stdout }}', expected the templated value. This
+          scenario leaves rust_gameserver_overwrite_env at its default of true, so the role is
+          authoritative and the drift applied above must be re-templated away. The
+          manager-owned case (overwrite_env false) is covered by the external scenario.
 
     - name: Check if rust wipe cron exists
       ansible.builtin.stat:
@@ -204,18 +213,10 @@
         that:
           - "'99999' in (seed_env_content.content | b64decode)"
 
-    - name: Check rust.env drift was overwritten (default overwrite_env)
-      ansible.builtin.lineinfile:
-        path: /etc/rust/install/test/server/test/rust.env
-        line: 'RUST_SERVER_NAME="Test Server"'
-        state: present
-      check_mode: true
-      register: rust_env_restored
-
-    - name: Assert rust.env was re-templated over the drift
-      ansible.builtin.assert:
-        that:
-          - not rust_env_restored.changed
+    # "the drift was re-templated away" is already asserted above, by sourcing rust.env and
+    # comparing the VALUE. This used to assert the same thing a second time by matching the
+    # literal bytes `RUST_SERVER_NAME="Test Server"`, which pinned an incidental quoting format
+    # rather than the property.
 
     - name: Stat oxide plugins directory ownership
       ansible.builtin.stat:

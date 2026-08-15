@@ -80,6 +80,33 @@ rust_gameserver_overwrite_env: true
 # group from the one asked for.
 #
 # rust_gameserver_runtime_group therefore only takes effect when the role CREATES the account.
+# How the game is run: 'docker' (the image owns steamcmd and the restart policy) or
+# 'baremetal' (steamcmd installs the game, a per-identity systemd unit supervises it).
+#
+# Everything else in this role is shared between them -- the same directory layout, the
+# same rust.env/seed.env, the same permissions. An external manager sees an identical
+# filesystem either way.
+#
+# Several BARE-METAL instances can share a host: run the role once per identity and each
+# gets its own install tree, its own rust-<identity>.service and its own ports. Give each
+# one a different rust_gameserver_identity and non-colliding ports. Note each install tree
+# is a full copy of the game (20-30 GB) -- deliberate, since two servers must never share
+# an install dir.
+rust_gameserver_deployment: docker
+
+# Bare metal only. steamcmd is shared by every instance on the host; installing it is
+# idempotent, so running the role for a second identity does not re-fetch it.
+rust_gameserver_steamcmd_dir: /opt/steamcmd
+# Left empty so the role derives it from the runtime account's REAL home directory. Guessing
+# /home/<name> puts steamclient.so somewhere Steamworks never looks, and the symptom is a
+# server that starts and then quietly fails to reach Steam. Set it only to override.
+rust_gameserver_steam_sdk_dir: ""
+rust_gameserver_service_enabled: true
+# See the note in the unit template: an RCON restart exits the process, so without a
+# restart policy nothing brings the server back.
+rust_gameserver_service_restart: always
+rust_gameserver_service_restart_sec: 10
+
 rust_gameserver_runtime_user: ""
 rust_gameserver_runtime_group: "{{ rust_gameserver_runtime_user }}"
 

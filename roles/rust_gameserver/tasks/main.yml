@@ -98,15 +98,18 @@
   when: rust_gameserver_runtime_user | length > 0
 
 # Numeric mode: we still need the NAME to check it against the manager users below.
+# fail_key: false because the uid need not exist on the HOST at all -- in a container-only
+# deployment it only has to exist inside the image. An unresolvable uid is not an error here;
+# it just means there is no name to compare against the manager users, and no account to
+# become for a bare-metal launch. Both of those are handled where they matter.
 - name: Resolve the runtime user's name from its uid
   tags: rust_gameserver
   become: true
   ansible.builtin.getent:
     database: passwd
     key: "{{ rust_gameserver_puid }}"
-  when:
-    - rust_gameserver_runtime_user | length == 0
-    - rust_gameserver_manager_users | length > 0
+    fail_key: false
+  when: rust_gameserver_runtime_user | length == 0
 
 - name: Record which account the game will run as
   tags: rust_gameserver
@@ -114,8 +117,8 @@
     rust_gameserver_runtime_user_name: >-
       {{ rust_gameserver_runtime_user
          if rust_gameserver_runtime_user | length > 0
-         else (ansible_facts.getent_passwd | first) }}
-  when: rust_gameserver_manager_users | length > 0
+         else (ansible_facts.getent_passwd | dict2items
+               | selectattr('value', 'ne', None) | map(attribute='key') | first | default('')) }}
 
 # The check that would have caught it. When the game runs as one of the manager users,
 # every permission decision in this role becomes a no-op: the manager owns the files
@@ -139,7 +142,9 @@
       grant nothing and the manager can read the RCON password from the game's process
       arguments. Set rust_gameserver_runtime_user to a dedicated account (the role will create
       it) and chown the install tree to it.
-  when: rust_gameserver_manager_users | length > 0
+  when:
+    - rust_gameserver_manager_users | length > 0
+    - rust_gameserver_runtime_user_name | length > 0
 
 - name: Create base config directories
   tags: rust_gameserver
@@ -327,51 +332,22 @@
     user: root
     state: "{{ 'present' if rust_gameserver_manage_wipe_cron else 'absent' }}"
 
-- name: Deploy rust server
-  become: true
-  community.docker.docker_container:
-    name: "rust-{{ rust_gameserver_identity }}"
-    image: ghcr.io/compscidr/rust-server
-    pull: true
-    volumes:
-      # ONE mount: the whole install root, host-visible per server. The game's own layout
-      # places everything about this server inside it — binaries, oxide/, saves at
-      # server/<identity>/ — so files the game writes to its root (notably vanilla
-      # `world.rendermap` output, which rustd.xyz fetches over SSH) exist on the host at
-      # the same relative paths. The image's entrypoint installs/updates the game into
-      # this dir on boot; the first boot after adopting the mount downloads the game.
-      #
-      # Never point two containers at the same install dir: concurrent steamcmd updates
-      # and runtime state conflict. Per-server dirs are the whole point of this layout.
-      - "{{ rust_gameserver_install_dir }}:/steamcmd/rust:rw"
-      # The entrypoint sources these from /etc/rust/*.env inside the container; the file
-      # binds let a seed or env change apply on the next container restart without a
-      # redeploy. They live in the identity dir so the panel's wipe flow (which rewrites
-      # seed.env inside its data path) keeps working.
-      - "{{ rust_gameserver_data_dir }}/rust.env:/etc/rust/rust.env"
-      - "{{ rust_gameserver_data_dir }}/seed.env:/etc/rust/seed.env"
-    ports:
-      - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}"
-      - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}/udp"
-      - "{{ rust_gameserver_rcon_port }}:{{ rust_gameserver_rcon_port }}"
-      - "{{ rust_gameserver_rcon_port }}:{{ rust_gameserver_rcon_port }}/udp"
-      - "{{ rust_gameserver_query_port }}:{{ rust_gameserver_query_port }}"
-      - "{{ rust_gameserver_query_port }}:{{ rust_gameserver_query_port }}/udp"
-      - "{{ rust_gameserver_rcon_web_port }}:8080"
-      - "{{ rust_gameserver_app_port }}:{{ rust_gameserver_app_port }}"
-      - "{{ rust_gameserver_app_port }}:{{ rust_gameserver_app_port }}/udp"
-    env:
-      TZ: "{{ rust_gameserver_timezone }}"
-      PUID: "{{ rust_gameserver_puid }}"
-      PGID: "{{ rust_gameserver_pgid }}"
-    devices:
-      - /dev/dri:/dev/dri
-    restart_policy: unless-stopped
-    memory: 20g
-    # The image ships a HEALTHCHECK that runs `rcon test` and reports unhealthy
-    # while RCON is starting up. Docker respects `start_period`, but some
-    # third-party container managers (e.g. UGREEN NAS's docker_serv) don't and
-    # will kill the container mid-install. When this is set, override the
-    # image's healthcheck with `["NONE"]` so it's effectively disabled.
-    healthcheck: "{{ {'test': ['NONE']} if rust_gameserver_healthcheck_disabled else omit }}"
-  when: not (rust_gameserver_molecule_test | default(false))
+# One role, two ways to run the game. Everything above is shared: the same directory
+# layout, the same rust.env/seed.env, the same permissions and manager-group model. Only
+# the launch mechanism differs -- a container with a restart policy, or a systemd unit.
+#
+# Kept as an include rather than two roles because the shared part is most of the role,
+# and the panel (rustd.xyz) must see an identical filesystem either way: it reads and
+# rewrites rust.env and seed.env in place regardless of how the process is started.
+- name: Reject an unknown deployment type
+  tags: rust_gameserver
+  ansible.builtin.assert:
+    that:
+      - rust_gameserver_deployment in ['docker', 'baremetal']
+    fail_msg: >-
+      rust_gameserver_deployment is '{{ rust_gameserver_deployment }}';
+      it must be 'docker' or 'baremetal'.
+
+- name: Deploy the server
+  tags: rust_gameserver
+  ansible.builtin.include_tasks: "{{ rust_gameserver_deployment }}.yml"

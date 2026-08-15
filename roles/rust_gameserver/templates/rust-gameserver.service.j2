@@ -1,0 +1,34 @@
+# {{ ansible_managed }}
+#
+# One unit per identity, so several bare-metal servers coexist on a host without
+# colliding: rust-<identity>.service, its own install tree, its own ports.
+
+[Unit]
+Description=Rust dedicated server ({{ rust_gameserver_identity }})
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ rust_gameserver_puid }}
+Group={{ rust_gameserver_pgid }}
+WorkingDirectory={{ rust_gameserver_install_dir }}
+ExecStart={{ rust_gameserver_install_dir }}/start.sh
+
+# An RCON `restart` is a DELAYED SHUTDOWN, not a restart -- the process exits and does not
+# come back on its own. Anything that restarts the server unattended (scheduled wipes,
+# maintenance windows, blueprint restores) depends on this line to bring it back.
+#
+# `always` rather than `on-failure`: the exit code after an RCON restart is not something
+# we have measured, and on-failure would not recover a clean exit 0.
+Restart={{ rust_gameserver_service_restart }}
+# systemd's default is 100ms, which burns through the start-limit burst in under a second
+# if the server dies during boot -- and being given up on looks identical to not having a
+# restart policy at all.
+RestartSec={{ rust_gameserver_service_restart_sec }}
+
+KillSignal=SIGINT
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target
