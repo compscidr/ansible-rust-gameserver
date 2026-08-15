@@ -72,8 +72,14 @@ rust_gameserver_overwrite_env: true
 # below grant nothing, because the manager already owns every file. See the collision assert
 # in tasks/main.yml.
 #
-# Adoption is safe: an existing account is looked up, not modified. Point this at whatever the
-# host already uses (`steam`, say) and its real uid/gid are adopted.
+# Adoption never modifies an existing account. If the named user already exists it is looked
+# up and its REAL uid and primary gid are used -- rust_gameserver_runtime_group is not applied
+# to it, because rewriting the primary group of an account like `steam`, which other things on
+# the host may already depend on, is not a change a deploy should make silently. If its primary
+# group is not the one requested here, the role refuses rather than quietly using a different
+# group from the one asked for.
+#
+# rust_gameserver_runtime_group therefore only takes effect when the role CREATES the account.
 rust_gameserver_runtime_user: ""
 rust_gameserver_runtime_group: "{{ rust_gameserver_runtime_user }}"
 

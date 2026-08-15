@@ -9,6 +9,25 @@
 # looked up, never modified: no shell, home or group is imposed on an account this role
 # did not create, because adopting `steam` on a host that already uses it must not
 # silently change how someone logs in.
+- name: Look up the runtime account
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ rust_gameserver_runtime_user }}"
+    fail_key: false
+  when: rust_gameserver_runtime_user | length > 0
+
+- name: Note whether the runtime account already exists
+  tags: rust_gameserver
+  ansible.builtin.set_fact:
+    rust_gameserver_runtime_exists: >-
+      {{ ansible_facts.getent_passwd[rust_gameserver_runtime_user] is not none }}
+  when: rust_gameserver_runtime_user | length > 0
+
+# CREATE path only. An existing account is never passed to the user module: `group:` would
+# rewrite its primary group, which for an account like `steam` that other things already
+# depend on is exactly the kind of change a deploy has no business making silently.
 - name: Ensure the runtime group exists
   tags: rust_gameserver
   become: true
@@ -17,9 +36,11 @@
     system: true
     state: present
   register: rust_gameserver_group_result
-  when: rust_gameserver_runtime_user | length > 0
+  when:
+    - rust_gameserver_runtime_user | length > 0
+    - not rust_gameserver_runtime_exists | bool
 
-- name: Ensure the runtime user exists
+- name: Create the runtime user
   tags: rust_gameserver
   become: true
   ansible.builtin.user:
@@ -29,13 +50,51 @@
     create_home: false
     state: present
   register: rust_gameserver_user_result
-  when: rust_gameserver_runtime_user | length > 0
+  when:
+    - rust_gameserver_runtime_user | length > 0
+    - not rust_gameserver_runtime_exists | bool
 
-- name: Adopt the runtime identity's real uid and gid
+# ADOPT path: take the account exactly as it is. Its real primary gid is used rather than
+# rust_gameserver_runtime_group, so nothing about the account changes.
+- name: Resolve the existing account's primary group
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.getent:
+    database: group
+    key: "{{ ansible_facts.getent_passwd[rust_gameserver_runtime_user][2] }}"
+  when:
+    - rust_gameserver_runtime_user | length > 0
+    - rust_gameserver_runtime_exists | bool
+
+# Refused rather than silently ignored: carrying on would use a different group from the one
+# the operator asked for, and the group is what every permission in this role hangs off.
+- name: Refuse to adopt an account whose primary group is not the requested one
+  tags: rust_gameserver
+  ansible.builtin.assert:
+    that:
+      - (ansible_facts.getent_group | first) == rust_gameserver_runtime_group
+    fail_msg: >-
+      '{{ rust_gameserver_runtime_user }}' already exists with primary group
+      '{{ ansible_facts.getent_group | first }}', but rust_gameserver_runtime_group is
+      '{{ rust_gameserver_runtime_group }}'. Adopting an account never modifies it, so this
+      role will not change its primary group. Either set rust_gameserver_runtime_group to
+      '{{ ansible_facts.getent_group | first }}', or pick a runtime user that does not exist
+      yet and let the role create it.
+  when:
+    - rust_gameserver_runtime_user | length > 0
+    - rust_gameserver_runtime_exists | bool
+
+- name: Use the runtime identity's real uid and gid
   tags: rust_gameserver
   ansible.builtin.set_fact:
-    rust_gameserver_puid: "{{ rust_gameserver_user_result.uid }}"
-    rust_gameserver_pgid: "{{ rust_gameserver_group_result.gid }}"
+    rust_gameserver_puid: >-
+      {{ ansible_facts.getent_passwd[rust_gameserver_runtime_user][1]
+         if rust_gameserver_runtime_exists | bool
+         else rust_gameserver_user_result.uid }}
+    rust_gameserver_pgid: >-
+      {{ ansible_facts.getent_passwd[rust_gameserver_runtime_user][2]
+         if rust_gameserver_runtime_exists | bool
+         else rust_gameserver_group_result.gid }}
   when: rust_gameserver_runtime_user | length > 0
 
 # Numeric mode: we still need the NAME to check it against the manager users below.
