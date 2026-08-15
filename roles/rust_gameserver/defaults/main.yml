@@ -62,6 +62,29 @@ rust_gameserver_manage_wipe_cron: true
 rust_gameserver_overwrite_env: true
 # Runtime uid/gid the container drops to (PUID/PGID) — also owns the per-identity
 # config directories so Oxide/the server can create files there, and groups rust.env.
+# The identity the game runs as. Give it a NAME and the role ensures the account and group
+# exist and derives the uid/gid from them; leave it empty and the numeric puid/pgid below are
+# used as-is (the pre-0.5.0 behaviour, kept so existing installs are not re-homed).
+#
+# Naming it is strongly recommended. A bare uid means "whoever happens to be uid 1000 on this
+# host", which is how one deployment ended up running the game as the very account an external
+# manager connects with -- at which point the group-write permissions and the setgid directory
+# below grant nothing, because the manager already owns every file. See the collision assert
+# in tasks/main.yml.
+#
+# Adoption never modifies an existing account. If the named user already exists it is looked
+# up and its REAL uid and primary gid are used -- rust_gameserver_runtime_group is not applied
+# to it, because rewriting the primary group of an account like `steam`, which other things on
+# the host may already depend on, is not a change a deploy should make silently. If its primary
+# group is not the one requested here, the role refuses rather than quietly using a different
+# group from the one asked for.
+#
+# rust_gameserver_runtime_group therefore only takes effect when the role CREATES the account.
+rust_gameserver_runtime_user: ""
+rust_gameserver_runtime_group: "{{ rust_gameserver_runtime_user }}"
+
+# Used directly only when rust_gameserver_runtime_user is empty; otherwise the role overwrites
+# these with the real ids of that account.
 rust_gameserver_puid: "1000"
 rust_gameserver_pgid: "1000"
 

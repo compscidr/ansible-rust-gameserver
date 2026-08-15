@@ -1,4 +1,9 @@
 # Changelog
+## 0.5.0
+* **The role can now own the game's runtime identity.** Set `rust_gameserver_runtime_user` (and optionally `_group`) to a NAME and the role ensures that account and group exist and adopts their real uid/gid. Existing accounts are looked up, never modified -- point it at `steam` on a host that already uses it and nothing about that account changes
+* **New guard: the role refuses to run the game as one of `rust_gameserver_manager_users`.** When those collide, every permission decision in this role is a no-op -- the manager owns the files outright, so group write grants nothing, the setgid directory grants nothing, and adding the manager to "the runtime group" adds it to its own group. The deployment appears to work with none of its security properties. The manager can also read the RCON password out of the game's `/proc` entry, which running as a separate account prevents
+* Leaving `rust_gameserver_runtime_user` empty keeps the previous numeric `puid`/`pgid` behaviour, so existing installs are not re-homed. The new guard still applies in that mode
+* Molecule now deploys a dedicated `rustsvc` runtime account distinct from the manager, and every assertion that hardcoded uid/gid `1000` was rewritten to reference the resolved ids -- four of them, all of which silently assumed the runtime identity was uid 1000
 ## 0.4.2
 * **The default `rust_gameserver_banner_url` now points at an image in this repo** (`roles/rust_gameserver/files/server-default.jpg`, served over `raw.githubusercontent.com`) instead of imgbox, which went down and left every server that took the default showing a broken banner in the server browser. The file is not copied anywhere by the role — it exists only so the URL resolves. Servers that set their own banner are unaffected
 ## 0.4.1

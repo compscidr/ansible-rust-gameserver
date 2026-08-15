@@ -16,6 +16,15 @@
         regexp: '^RUST_SERVER_NAME='
         line: 'RUST_SERVER_NAME="Renamed At Runtime"'
 
+    # Adoption must not touch the account. Give it a distinctive shell first: converge CREATED
+    # rustsvc, so the re-include below takes the adopt path, and anything the role does to an
+    # existing user shows up here. The old implementation passed existing accounts to the user
+    # module, which would rewrite their primary group.
+    - name: Give the runtime account a distinctive shell before it is adopted
+      ansible.builtin.user:
+        name: rustsvc
+        shell: /bin/bash
+
     - name: Re-include rust_gameserver role
       ansible.builtin.include_role:
         name: rust_gameserver
@@ -29,6 +38,11 @@
         # which is precisely what this re-include caught, and is a real hazard: an
         # operator who deploys from a context missing these vars silently locks the
         # external manager out of the directory it needs.
+        # A dedicated runtime account, distinct from the manager. Without this the game
+        # would run as molecule_manager (the first regular user in the container, so uid
+        # 1000) and the role now refuses -- correctly, since every permission it sets
+        # would be a no-op.
+        rust_gameserver_runtime_user: "rustsvc"
         rust_gameserver_manager_users:
           - "molecule_manager"
         rust_gameserver_identity_dir_mode: '2775'
@@ -87,6 +101,44 @@
     #
     # Asserted on the mode bits rather than "the manager can write", because the manager user
     # does not exist in this scenario; the group grant is what makes it possible.
+    # The runtime identity must be a real, separate account -- this is what makes the
+    # group-write permissions below mean anything. If the game ran as the manager, it
+    # would own every file outright and none of the permission work would be doing
+    # anything, which is precisely the state the role now refuses to deploy.
+    - name: Read the runtime account after adoption
+      ansible.builtin.getent:
+        database: passwd
+        key: rustsvc
+
+    - name: Assert adopting the account did not modify it
+      ansible.builtin.assert:
+        that:
+          - (ansible_facts.getent_passwd | dict2items | first).value[5] == '/bin/bash'
+          - (ansible_facts.getent_passwd | dict2items | first).value[2] == rust_gameserver_pgid | string
+        fail_msg: >-
+          rustsvc was altered by being adopted -- shell
+          {{ (ansible_facts.getent_passwd | dict2items | first).value[5] }}, primary gid
+          {{ (ansible_facts.getent_passwd | dict2items | first).value[2] }}. An existing
+          account must be looked up, never rewritten.
+
+    - name: Look up the runtime and manager accounts
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ item }}"
+      register: runtime_accounts
+      loop:
+        - rustsvc
+        - molecule_manager
+
+    - name: Assert the game runs as its own account, not the manager's
+      ansible.builtin.assert:
+        that:
+          - (runtime_accounts.results[0].ansible_facts.getent_passwd | dict2items | first).value[1]
+            != (runtime_accounts.results[1].ansible_facts.getent_passwd | dict2items | first).value[1]
+        fail_msg: >-
+          rustsvc and molecule_manager resolved to the same uid, so every permission
+          this role sets would be a no-op.
+
     - name: Stat the env files the external manager must rewrite in place
       ansible.builtin.stat:
         path: "{{ item }}"
@@ -99,9 +151,13 @@
       ansible.builtin.assert:
         that:
           - item.stat.wgrp
-          - item.stat.gid | int == 1000
+          # Against the runtime gid the role actually resolved, not a literal. The previous
+          # hardcoded 1000 only held while the runtime identity happened to be uid 1000 --
+          # which is the very assumption this change exists to remove.
+          - item.stat.gid | int == rust_gameserver_pgid | int
         fail_msg: >-
-          {{ item.stat.path }} is mode {{ item.stat.mode }} gid {{ item.stat.gid }} —
+          {{ item.stat.path }} is mode {{ item.stat.mode }} gid {{ item.stat.gid }}
+          (expected gid {{ rust_gameserver_pgid }}) —
           the manager cannot rewrite it in place, so it would replace the inode and
           orphan the container's single-file bind mount.
       loop: "{{ manager_writable_files.results }}"
@@ -169,8 +225,8 @@
     - name: Assert identity directories are owned by the runtime user
       ansible.builtin.assert:
         that:
-          - oxide_dir_stat.stat.uid == 1000
-          - oxide_dir_stat.stat.gid == 1000
+          - oxide_dir_stat.stat.uid == rust_gameserver_puid | int
+          - oxide_dir_stat.stat.gid == rust_gameserver_pgid | int
 
     - name: Stat rust.env permissions
       ansible.builtin.stat:
@@ -182,7 +238,7 @@
         that:
           - rust_env_stat.stat.mode == '0660'
           - rust_env_stat.stat.uid == 0
-          - rust_env_stat.stat.gid == 1000
+          - rust_env_stat.stat.gid == rust_gameserver_pgid | int
 
     - name: Stat the identity directory
       ansible.builtin.stat:
@@ -193,7 +249,7 @@
       ansible.builtin.assert:
         that:
           - identity_dir_stat.stat.mode == '2775'
-          - identity_dir_stat.stat.gid == 1000
+          - identity_dir_stat.stat.gid == rust_gameserver_pgid | int
         fail_msg: >-
           The identity directory must be group-writable and SETGID. Without setgid,
           `sed -i` on seed.env hands the replacement to the manager's own group and
@@ -202,7 +258,7 @@
     - name: Read the runtime group
       ansible.builtin.getent:
         database: group
-        key: "1000"
+        key: "{{ rust_gameserver_pgid }}"
 
     - name: Assert the manager user was added to the runtime group
       ansible.builtin.assert:
