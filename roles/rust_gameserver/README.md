@@ -59,6 +59,47 @@ rust_gameserver_overwrite_env           | Whether `rust.env` is re-templated on 
 rust_gameserver_puid                    | Runtime uid the container drops to (default `"1000"`); also owns the per-identity config directories and is used for file ownership
 rust_gameserver_pgid                    | Runtime gid (default `"1000"`); also the group on `rust.env` (mode 660) and `seed.env` (mode 664), so the runtime user can read the RCON password while other host users cannot, and an external manager in this group can rewrite both in place — see "Why `rust.env` and `seed.env` are group-writable"
 
+## Deployment modes
+
+`rust_gameserver_deployment` selects how the game is run:
+
+| | `docker` (default) | `baremetal` |
+|--|--|--|
+| game install | the image, via its own steamcmd | steamcmd, into `rust_gameserver_install_dir` |
+| supervision | container restart policy | `rust-<identity>.service`, `Restart=always` |
+| config | `rust.env` + `seed.env` | the same two files |
+
+Everything else is shared. The directory layout, permissions, manager-group model and wipe
+script are identical, so an external manager such as
+[rustd.xyz](https://github.com/compscidr/rustd.xyz) sees the same filesystem either way and
+needs no knowledge of which mode is in use.
+
+### Several bare-metal instances on one host
+
+Run the role once per identity. Each instance gets its own install tree, its own
+`rust-<identity>.service` and its own ports:
+
+```yaml
+- ansible.builtin.include_role: { name: rust_gameserver }
+  vars:
+    rust_gameserver_deployment: baremetal
+    rust_gameserver_identity: alpha
+    rust_gameserver_port: 28015      # and query/rcon/app ports
+    rust_gameserver_runtime_user: rustsvc
+
+- ansible.builtin.include_role: { name: rust_gameserver }
+  vars:
+    rust_gameserver_deployment: baremetal
+    rust_gameserver_identity: beta
+    rust_gameserver_port: 29015
+    rust_gameserver_runtime_user: rustsvc
+```
+
+Give each a distinct identity and non-colliding ports. steamcmd itself is shared and
+installed once; the game install is **per instance** — the same reason two containers must
+never share an install dir, since steamcmd updates and runtime state conflict. Budget
+20–30 GB per instance.
+
 ## Management modes
 
 By default this role is authoritative: every run re-templates `rust.env` and

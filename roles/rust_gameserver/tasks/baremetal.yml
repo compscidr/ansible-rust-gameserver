@@ -1,0 +1,119 @@
+---
+# Bare-metal deployment: steamcmd installs the game, systemd supervises it.
+#
+# Everything identity-scoped, so several instances coexist on one machine: each gets its
+# own install tree under rust_gameserver_install_dir, its own `rust-<identity>.service`,
+# and its own ports. Only steamcmd itself is shared, and installing it is idempotent.
+#
+# Per-instance install trees are deliberate, matching the container layout and the same
+# warning that applies there: two servers must never share an install dir, because
+# steamcmd updates and runtime state conflict. It costs 20-30 GB per instance.
+
+- name: Install steamcmd prerequisites
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.apt:
+    name:
+      - lib32gcc-s1
+      - lib32stdc++6
+      - ca-certificates
+      - tar
+      - curl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Create the steamcmd directory
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ rust_gameserver_steamcmd_dir }}"
+    state: directory
+    mode: '755'
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+
+# Shared by every instance on the host, so this must stay idempotent across repeated role
+# invocations. `creates:` is what makes running the role for a second identity a no-op here.
+- name: Download and unpack steamcmd
+  tags: rust_gameserver
+  become: true
+  become_user: "{{ rust_gameserver_runtime_user_name }}"
+  ansible.builtin.unarchive:
+    src: https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+    dest: "{{ rust_gameserver_steamcmd_dir }}"
+    remote_src: true
+    creates: "{{ rust_gameserver_steamcmd_dir }}/steamcmd.sh"
+
+# The game install itself. Skipped under molecule: it is tens of GB and minutes long, and
+# nothing this role does afterwards depends on the binaries being real.
+- name: Install or update the Rust dedicated server
+  tags: rust_gameserver
+  become: true
+  become_user: "{{ rust_gameserver_runtime_user_name }}"
+  ansible.builtin.command:
+    cmd: >-
+      {{ rust_gameserver_steamcmd_dir }}/steamcmd.sh
+      +force_install_dir {{ rust_gameserver_install_dir }}
+      +login anonymous
+      +app_update 258550 validate
+      +quit
+  register: rust_gameserver_steamcmd
+  changed_when: "'Success! App ' in rust_gameserver_steamcmd.stdout"
+  when: not (rust_gameserver_molecule_test | default(false))
+
+# Steamworks looks for steamclient.so under the RUNTIME USER's home, not the install dir.
+# Without it the server starts and then fails to reach Steam, which presents as a server
+# nobody can find rather than as an obvious error.
+- name: Create the Steam SDK directory
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ rust_gameserver_steam_sdk_dir }}"
+    state: directory
+    mode: '755'
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+
+- name: Link steamclient.so where the Steamworks loader looks for it
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    src: "{{ rust_gameserver_steamcmd_dir }}/linux64/steamclient.so"
+    dest: "{{ rust_gameserver_steam_sdk_dir }}/steamclient.so"
+    state: link
+    force: true
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+    follow: false
+
+- name: Install the launch script
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.template:
+    src: start.sh.j2
+    dest: "{{ rust_gameserver_install_dir }}/start.sh"
+    mode: '750'
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+
+- name: Install the systemd unit
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.template:
+    src: rust-gameserver.service.j2
+    dest: "/etc/systemd/system/rust-{{ rust_gameserver_identity }}.service"
+    mode: '644'
+    owner: root
+    group: root
+
+- name: Set the service state
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.systemd_service:
+    name: "rust-{{ rust_gameserver_identity }}"
+    enabled: "{{ rust_gameserver_service_enabled }}"
+    state: "{{ 'started' if rust_gameserver_service_enabled else 'stopped' }}"
+    daemon_reload: true
+  when: not (rust_gameserver_molecule_test | default(false))

@@ -1,0 +1,52 @@
+---
+# Containerised deployment. The image owns steamcmd, the game install and the restart
+# policy; everything before this point -- directories, env files, permissions, the wipe
+# cron -- is identical to the bare-metal path and lives in main.yml.
+- name: Deploy rust server
+  become: true
+  community.docker.docker_container:
+    name: "rust-{{ rust_gameserver_identity }}"
+    image: ghcr.io/compscidr/rust-server
+    pull: true
+    volumes:
+      # ONE mount: the whole install root, host-visible per server. The game's own layout
+      # places everything about this server inside it — binaries, oxide/, saves at
+      # server/<identity>/ — so files the game writes to its root (notably vanilla
+      # `world.rendermap` output, which rustd.xyz fetches over SSH) exist on the host at
+      # the same relative paths. The image's entrypoint installs/updates the game into
+      # this dir on boot; the first boot after adopting the mount downloads the game.
+      #
+      # Never point two containers at the same install dir: concurrent steamcmd updates
+      # and runtime state conflict. Per-server dirs are the whole point of this layout.
+      - "{{ rust_gameserver_install_dir }}:/steamcmd/rust:rw"
+      # The entrypoint sources these from /etc/rust/*.env inside the container; the file
+      # binds let a seed or env change apply on the next container restart without a
+      # redeploy. They live in the identity dir so the panel's wipe flow (which rewrites
+      # seed.env inside its data path) keeps working.
+      - "{{ rust_gameserver_data_dir }}/rust.env:/etc/rust/rust.env"
+      - "{{ rust_gameserver_data_dir }}/seed.env:/etc/rust/seed.env"
+    ports:
+      - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}"
+      - "{{ rust_gameserver_port }}:{{ rust_gameserver_port }}/udp"
+      - "{{ rust_gameserver_rcon_port }}:{{ rust_gameserver_rcon_port }}"
+      - "{{ rust_gameserver_rcon_port }}:{{ rust_gameserver_rcon_port }}/udp"
+      - "{{ rust_gameserver_query_port }}:{{ rust_gameserver_query_port }}"
+      - "{{ rust_gameserver_query_port }}:{{ rust_gameserver_query_port }}/udp"
+      - "{{ rust_gameserver_rcon_web_port }}:8080"
+      - "{{ rust_gameserver_app_port }}:{{ rust_gameserver_app_port }}"
+      - "{{ rust_gameserver_app_port }}:{{ rust_gameserver_app_port }}/udp"
+    env:
+      TZ: "{{ rust_gameserver_timezone }}"
+      PUID: "{{ rust_gameserver_puid }}"
+      PGID: "{{ rust_gameserver_pgid }}"
+    devices:
+      - /dev/dri:/dev/dri
+    restart_policy: unless-stopped
+    memory: 20g
+    # The image ships a HEALTHCHECK that runs `rcon test` and reports unhealthy
+    # while RCON is starting up. Docker respects `start_period`, but some
+    # third-party container managers (e.g. UGREEN NAS's docker_serv) don't and
+    # will kill the container mid-install. When this is set, override the
+    # image's healthcheck with `["NONE"]` so it's effectively disabled.
+    healthcheck: "{{ {'test': ['NONE']} if rust_gameserver_healthcheck_disabled else omit }}"
+  when: not (rust_gameserver_molecule_test | default(false))

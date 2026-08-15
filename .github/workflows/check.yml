@@ -90,6 +90,7 @@ jobs:
         run: |
           source venv/bin/activate
           molecule test
+          molecule test -s baremetal
         env:
           MOLECULE_NO_LOG: false
           CI: true

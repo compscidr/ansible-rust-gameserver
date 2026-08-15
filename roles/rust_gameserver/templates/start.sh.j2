@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+#
+# Bare-metal launcher for the '{{ rust_gameserver_identity }}' server.
+#
+# Values come from rust.env and seed.env rather than being templated in, so this matches
+# the containerised path exactly: the image sources the same two files. That is what lets
+# an external manager (rustd.xyz) change the hostname, description or seed and have it
+# survive a restart -- it rewrites those files in place, and this script reads whatever
+# they say at boot.
+#
+# Anything templated in here instead would be reverted by the next deploy and invisible
+# to the manager.
+
+set -euo pipefail
+
+ENV_FILE="{{ rust_gameserver_data_dir }}/rust.env"
+SEED_FILE="{{ rust_gameserver_data_dir }}/seed.env"
+
+for f in "${ENV_FILE}" "${SEED_FILE}"; do
+  if [ ! -r "${f}" ]; then
+    echo "FATAL: ${f} is missing or unreadable" >&2
+    exit 1
+  fi
+done
+
+set -o allexport
+# shellcheck source=/dev/null
+source "${ENV_FILE}"
+# Second, so a wipe rotating the seed always wins over a stale value in rust.env.
+# shellcheck source=/dev/null
+source "${SEED_FILE}"
+set +o allexport
+
+# Refuse rather than let Rust pick its own. An empty seed means the running map silently
+# stops matching what seed.env -- and the panel -- believe is running, and a server that
+# will not start is a far cheaper failure than a map nobody can identify.
+if [ -z "${RUST_SERVER_SEED:-}" ]; then
+  echo "FATAL: ${SEED_FILE} did not set RUST_SERVER_SEED" >&2
+  exit 1
+fi
+
+exec {{ rust_gameserver_install_dir }}/RustDedicated -batchmode -nographics \
+  +server.identity "{{ rust_gameserver_identity }}" \
+  +server.hostname "${RUST_SERVER_NAME:-Rust}" \
+  +server.description "${RUST_SERVER_DESCRIPTION:-}" \
+  +server.url "${RUST_SERVER_URL:-}" \
+  +server.headerimage "${RUST_SERVER_BANNER_URL:-}" \
+  +server.port "${RUST_SERVER_PORT:-{{ rust_gameserver_port }}}" \
+  +server.queryport "${RUST_SERVER_QUERYPORT:-{{ rust_gameserver_query_port }}}" \
+  +server.maxplayers "${RUST_SERVER_MAXPLAYERS:-{{ rust_gameserver_maxplayers }}}" \
+  +server.worldsize "${RUST_SERVER_WORLDSIZE:-{{ rust_gameserver_worldsize }}}" \
+  +server.seed "${RUST_SERVER_SEED}" \
+  +server.tags "${RUST_SERVER_TAGS:-}" \
+  +server.saveinterval "${RUST_SERVER_SAVEINTERVAL:-600}" \
+  +app.port "${RUST_APP_PORT:-{{ rust_gameserver_app_port }}}" \
+  +rcon.port "${RUST_RCON_PORT:-{{ rust_gameserver_rcon_port }}}" \
+  +rcon.password "${RUST_RCON_PASSWORD}" \
+  +rcon.web 1

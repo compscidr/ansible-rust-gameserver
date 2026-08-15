@@ -1,0 +1,56 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  pre_tasks:
+    - name: Create the manager user the role will add to the runtime group
+      ansible.builtin.user:
+        name: molecule_manager
+        create_home: false
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: ansible_os_family == "Debian"
+
+  tasks:
+    # TWO instances on one host -- the point of the bare-metal path is that they coexist.
+    # Each gets its own install tree, its own rust-<identity>.service and its own ports.
+    - name: Include rust_gameserver role for the first instance
+      ansible.builtin.include_role:
+        name: rust_gameserver
+      vars:
+        rust_gameserver_deployment: baremetal
+        rust_gameserver_identity: "alpha"
+        rust_gameserver_name: "Alpha"
+        rust_gameserver_description: "First bare-metal instance"
+        rust_gameserver_rcon_password: "alphapass"
+        rust_gameserver_runtime_user: "rustsvc"
+        rust_gameserver_manager_users:
+          - "molecule_manager"
+        rust_gameserver_identity_dir_mode: '2775'
+        rust_gameserver_port: 28015
+        rust_gameserver_query_port: 28016
+        rust_gameserver_rcon_port: 28017
+        rust_gameserver_app_port: 28082
+        rust_gameserver_molecule_test: true
+
+    - name: Include rust_gameserver role for the second instance
+      ansible.builtin.include_role:
+        name: rust_gameserver
+      vars:
+        rust_gameserver_deployment: baremetal
+        rust_gameserver_identity: "beta"
+        rust_gameserver_name: "Beta"
+        rust_gameserver_description: "Second bare-metal instance"
+        rust_gameserver_rcon_password: "betapass"
+        rust_gameserver_runtime_user: "rustsvc"
+        rust_gameserver_manager_users:
+          - "molecule_manager"
+        rust_gameserver_identity_dir_mode: '2775'
+        rust_gameserver_port: 29015
+        rust_gameserver_query_port: 29016
+        rust_gameserver_rcon_port: 29017
+        rust_gameserver_app_port: 29082
+        rust_gameserver_molecule_test: true

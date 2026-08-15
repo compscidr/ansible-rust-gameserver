@@ -1,0 +1,106 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    # The property the bare-metal path exists to provide: two instances on one host that
+    # do not collide. Everything below is asserted for BOTH identities.
+    - name: Stat both install trees
+      ansible.builtin.stat:
+        path: "/etc/rust/install/{{ item }}"
+      register: install_trees
+      loop: [alpha, beta]
+
+    - name: Assert each instance has its own install tree
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "{{ item.item }} has no install tree of its own"
+      loop: "{{ install_trees.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Stat both systemd units
+      ansible.builtin.stat:
+        path: "/etc/systemd/system/rust-{{ item }}.service"
+      register: units
+      loop: [alpha, beta]
+
+    - name: Assert each instance has its own unit
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: >-
+          rust-{{ item.item }}.service is missing -- a second instance would have
+          overwritten the first's unit rather than getting its own.
+      loop: "{{ units.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read both launch scripts
+      ansible.builtin.slurp:
+        src: "/etc/rust/install/{{ item }}/start.sh"
+      register: launchers
+      loop: [alpha, beta]
+
+    # The launcher must read rust.env/seed.env rather than carry baked-in values, or the
+    # panel's write-through has no effect on bare metal and a deploy silently reverts
+    # whatever an operator changed.
+    - name: Assert each launcher sources its own env files and bakes in no metadata
+      ansible.builtin.assert:
+        that:
+          - "'/etc/rust/install/' ~ item.item ~ '/server/' ~ item.item ~ '/rust.env' in (item.content | b64decode)"
+          - "'/etc/rust/install/' ~ item.item ~ '/server/' ~ item.item ~ '/seed.env' in (item.content | b64decode)"
+          - "'RUST_SERVER_NAME' in (item.content | b64decode)"
+        fail_msg: "{{ item.item }}'s start.sh does not source its own rust.env/seed.env"
+      loop: "{{ launchers.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Assert the launcher carries no templated RCON password
+      ansible.builtin.assert:
+        that:
+          - "'alphapass' not in (launchers.results[0].content | b64decode)"
+          - "'betapass' not in (launchers.results[1].content | b64decode)"
+        fail_msg: >-
+          The RCON password was templated into start.sh. It belongs in rust.env, which is
+          mode 660, so the launcher stays readable without leaking the password.
+
+    - name: Read both units
+      ansible.builtin.slurp:
+        src: "/etc/systemd/system/rust-{{ item }}.service"
+      register: unit_files
+      loop: [alpha, beta]
+
+    # Without a restart policy an RCON `restart` -- which is a delayed shutdown -- leaves
+    # the server down, and every unattended feature that restarts it silently breaks.
+    - name: Assert each unit is supervised and points at its own install tree
+      ansible.builtin.assert:
+        that:
+          - "'Restart=always' in (item.content | b64decode)"
+          - "'RestartSec=' in (item.content | b64decode)"
+          - "'/etc/rust/install/' ~ item.item ~ '/start.sh' in (item.content | b64decode)"
+        fail_msg: "rust-{{ item.item }}.service is not supervised or points at the wrong tree"
+      loop: "{{ unit_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read both wipe scripts
+      ansible.builtin.slurp:
+        src: "/etc/rust/install/{{ item }}/server/{{ item }}/wipe.sh"
+      register: wipers
+      loop: [alpha, beta]
+
+    - name: Assert wipe.sh drives systemd, not docker, on bare metal
+      ansible.builtin.assert:
+        that:
+          - "'systemctl stop rust-' ~ item.item in (item.content | b64decode)"
+          - "'docker stop' not in (item.content | b64decode)"
+        fail_msg: >-
+          {{ item.item }}'s wipe.sh still drives docker, so a scheduled wipe would do
+          nothing on a bare-metal server.
+      loop: "{{ wipers.results }}"
+      loop_control:
+        label: "{{ item.item }}"

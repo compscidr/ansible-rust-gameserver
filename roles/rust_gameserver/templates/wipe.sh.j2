@@ -3,7 +3,9 @@
 # run as root
 # https://www.bisecthosting.com/clients/index.php?rp=/knowledgebase/618/How-to-setup-automatic-server-wipes-on-a-Rust-server.html
 wipe() {
-  docker stop rust-{{ rust_gameserver_identity }}
+{% if rust_gameserver_deployment == 'baremetal' %}  systemctl stop rust-{{ rust_gameserver_identity }}
+{% else %}  docker stop rust-{{ rust_gameserver_identity }}
+{% endif %}
   rm -f {{ rust_gameserver_data_dir }}/player.deaths.*
   rm -f {{ rust_gameserver_data_dir }}/*.map
   rm -f {{ rust_gameserver_data_dir }}/*.sav*
@@ -14,7 +16,9 @@ wipe() {
   fi
 
   sudo sed -i~ '/^RUST_SERVER_SEED=/s/=.*/='$RANDOM'/' {{ rust_gameserver_data_dir }}/seed.env
-  docker start rust-{{ rust_gameserver_identity }}
+{% if rust_gameserver_deployment == 'baremetal' %}  systemctl start rust-{{ rust_gameserver_identity }}
+{% else %}  docker start rust-{{ rust_gameserver_identity }}
+{% endif %}
 }
 
 # determine if we actually issue wipe now or not
