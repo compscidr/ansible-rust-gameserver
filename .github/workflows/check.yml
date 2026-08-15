@@ -8,6 +8,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version:
+    name: Version Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: galaxy.yml version matches the newest CHANGELOG heading
+        run: ./.github/scripts/check-version.sh
+
   lint:
     name: Ansible Lint
     runs-on: ubuntu-latest
