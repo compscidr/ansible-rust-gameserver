@@ -233,21 +233,33 @@
     group: "{{ rust_gameserver_pgid }}"
 
 # Everything else inside the install tree is created by the game/Oxide at runtime —
-# these two exist ONLY so plugins can be copied in (the README's documented pattern)
+# these exist ONLY so plugins can be copied in (the README's documented pattern)
 # on a fresh host BEFORE the first boot has extracted Oxide; ansible's copy module
 # does not create parent directories.
-- name: Create plugin copy-in directories (owned by the runtime user)
+#
+# The oxide/plugins one is separated out because it is not only an Ansible copy-in
+# target: an external manager (rustd.xyz) installs plugins into it at runtime over
+# SSH, which needs group write the same way the identity directory does. See
+# rust_gameserver_plugins_dir_mode for why that is not left to a second opt-in.
+- name: Create the oxide plugins directory (writable by manager users)
   tags: rust_gameserver
   become: true
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ rust_gameserver_install_dir }}/oxide/plugins"
+    state: directory
+    mode: "{{ rust_gameserver_plugins_dir_mode }}"
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+
+- name: Create the managed dll copy-in directory (owned by the runtime user)
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ rust_gameserver_install_dir }}/RustDedicated_Data/Managed"
     state: directory
     mode: '755'
     owner: "{{ rust_gameserver_puid }}"
     group: "{{ rust_gameserver_pgid }}"
-  loop:
-    - "{{ rust_gameserver_install_dir }}/oxide/plugins"
-    - "{{ rust_gameserver_install_dir }}/RustDedicated_Data/Managed"
 
 # rust.env carries RUST_RCON_PASSWORD — not world-readable. The runtime group can
 # read it (the container entrypoint and dropped game user), other host users cannot.

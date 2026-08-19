@@ -129,6 +129,17 @@ rust_gameserver_manager_users: []
 # manager's own group and the container can no longer read its own seed.
 rust_gameserver_identity_dir_mode: '0755'
 
+# Mode for <install_dir>/oxide/plugins. Unlike the identity dir above this DERIVES from
+# whether a manager is configured, rather than defaulting to the old value and asking for a
+# second opt-in — naming a manager user and then forgetting this is exactly how rustd.xyz's
+# plugin install failed with a bare "Permission denied" on every server this collection had
+# provisioned, and there is no deployment that wants an external manager but does not want it
+# installing plugins. Override it to pin a mode explicitly.
+#
+# Group write is what lets the manager create the .cs file at all; SETGID keeps the file in the
+# runtime group afterwards, so Oxide can read what the manager wrote whatever umask it used.
+rust_gameserver_plugins_dir_mode: "{{ '2775' if rust_gameserver_manager_users | length > 0 else '0755' }}"
+
 # Where a server's ENTIRE tree lives on the host: the game install root, mounted at
 # /steamcmd/rust in the container. The game's own layout nests the identity (save) dir
 # at server/<identity> inside it, so everything about one server — binaries, plugins,
