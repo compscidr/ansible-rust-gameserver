@@ -229,6 +229,25 @@
           - oxide_dir_stat.stat.uid == rust_gameserver_puid | int
           - oxide_dir_stat.stat.gid == rust_gameserver_pgid | int
 
+    # Ownership alone was not enough, and rustd.xyz#469 is what proved it: the panel installs
+    # plugins by writing a .cs file into this directory over SFTP, and at 0755 owned by the
+    # runtime user it could not create one. The failure surfaced as a bare "Permission denied"
+    # on the build server with nothing to say what needed changing.
+    #
+    # SETGID follows the identity directory's precedent: a plugin the manager writes stays in
+    # the runtime group rather than the manager's own, so Oxide can read it whatever umask the
+    # manager happened to write with, and a later in-place rewrite by the runtime user works.
+    #
+    # Asserted on the bits rather than "the manager can write" because the mode is what the
+    # role controls; the group membership half is asserted separately at the end of this file.
+    - name: Assert the oxide plugins directory is group-writable and setgid for the manager
+      ansible.builtin.assert:
+        that:
+          - oxide_dir_stat.stat.mode == '2775'
+        fail_msg: >-
+          /etc/rust/install/test/oxide/plugins is mode {{ oxide_dir_stat.stat.mode }} —
+          an external manager in the runtime group cannot install a plugin into it.
+
     - name: Stat rust.env permissions
       ansible.builtin.stat:
         path: /etc/rust/install/test/server/test/rust.env

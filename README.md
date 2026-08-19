@@ -24,6 +24,10 @@ Since there may be multiple servers running on a machine, you can copy plugins
 to `/etc/rust/install/{{ rust_gameserver_identity }}/oxide/plugins` on the host
 machine.
 
+When `rust_gameserver_manager_users` is set, that directory is created `2775` so
+those users can also install plugins at runtime over SSH without root — see
+`rust_gameserver_plugins_dir_mode`. With no manager users it stays `0755`.
+
 Oxide config can be copied to `/etc/rust/install/{{ rust_gameserver_identity }}/oxide/`
 You may want to do this if you are using oxide plugins, but want to set your config
 to non-modified if you want to show up in the community servers list (note, you
