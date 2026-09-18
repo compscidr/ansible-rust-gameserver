@@ -63,6 +63,8 @@
         - /etc/rust/install/test/oxide/plugins
         - /etc/rust/install/test/RustDedicated_Data
         - /etc/rust/install/test/RustDedicated_Data/Managed
+        - /etc/rust/install/test/RustDedicated_Data/Managed/x64
+        - /etc/rust/install/test/RustDedicated_Data/Managed/x86
 
     - name: Assert all directories exist
       ansible.builtin.assert:
@@ -247,6 +249,32 @@
         fail_msg: >-
           /etc/rust/install/test/oxide/plugins is mode {{ oxide_dir_stat.stat.mode }} —
           an external manager in the runtime group cannot install a plugin into it.
+
+    # rustd.xyz#575: the plugins fix above landed and a panel-driven OXIDE install still died at
+    # "Permission denied" — Oxide backs up into the install root and extracts over Managed,
+    # and both were left 0755. Directory write is the whole grant (`unzip -o` unlinks and
+    # recreates), so nothing here asserts on the game's files.
+    - name: Stat the directories an Oxide install writes into
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: game_dir_stats
+      loop:
+        - /etc/rust/install/test
+        - /etc/rust/install/test/RustDedicated_Data/Managed
+        - /etc/rust/install/test/RustDedicated_Data/Managed/x64
+        - /etc/rust/install/test/RustDedicated_Data/Managed/x86
+
+    - name: Assert the install root and Managed are group-writable and setgid for the manager
+      ansible.builtin.assert:
+        that:
+          - item.stat.mode == '2775'
+          - item.stat.gid == rust_gameserver_pgid | int
+        fail_msg: >-
+          {{ item.item }} is mode {{ item.stat.mode }} — an external manager in the runtime
+          group cannot install Oxide from the panel.
+      loop: "{{ game_dir_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
 
     - name: Stat rust.env permissions
       ansible.builtin.stat:

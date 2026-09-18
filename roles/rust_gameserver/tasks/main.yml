@@ -209,18 +209,28 @@
 # the container's runtime user must be able to CREATE game files here (steamcmd writes
 # the whole install), and letting them appear as implicit parents of the identity dir
 # would leave them root-owned.
-- name: Create the install root (owned by the runtime user)
+#
+# The install root itself takes rust_gameserver_game_dir_mode: a panel-driven Oxide install
+# backs up into <install_dir>/.rustd-oxide-backup before it extracts (rustd.xyz#575).
+- name: Create the install root (owned by the runtime user, writable by manager users)
   tags: rust_gameserver
   become: true
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ rust_gameserver_install_dir }}"
+    state: directory
+    mode: "{{ rust_gameserver_game_dir_mode }}"
+    owner: "{{ rust_gameserver_puid }}"
+    group: "{{ rust_gameserver_pgid }}"
+
+- name: Create the server/ parent (owned by the runtime user)
+  tags: rust_gameserver
+  become: true
+  ansible.builtin.file:
+    path: "{{ rust_gameserver_install_dir }}/server"
     state: directory
     mode: '755'
     owner: "{{ rust_gameserver_puid }}"
     group: "{{ rust_gameserver_pgid }}"
-  loop:
-    - "{{ rust_gameserver_install_dir }}"
-    - "{{ rust_gameserver_install_dir }}/server"
 
 - name: Create the server identity directory
   tags: rust_gameserver
@@ -251,15 +261,23 @@
     owner: "{{ rust_gameserver_puid }}"
     group: "{{ rust_gameserver_pgid }}"
 
-- name: Create the managed dll copy-in directory (owned by the runtime user)
+# Managed and its x64/x86 are where the Oxide archive extracts — the game's assemblies get
+# replaced and Oxide's own dlls and native libraries added. steamcmd creates x64/x86 itself on
+# the first install (0755, like everything it makes); listing them here means an existing
+# host gets its mode corrected in place, and a fresh one has them ready before first boot.
+- name: Create the managed dll directories (owned by the runtime user, writable by manager users)
   tags: rust_gameserver
   become: true
   ansible.builtin.file:
-    path: "{{ rust_gameserver_install_dir }}/RustDedicated_Data/Managed"
+    path: "{{ rust_gameserver_install_dir }}/RustDedicated_Data/Managed/{{ item }}"
     state: directory
-    mode: '755'
+    mode: "{{ rust_gameserver_game_dir_mode }}"
     owner: "{{ rust_gameserver_puid }}"
     group: "{{ rust_gameserver_pgid }}"
+  loop:
+    - ""
+    - x64
+    - x86
 
 # rust.env carries RUST_RCON_PASSWORD — not world-readable. The runtime group can
 # read it (the container entrypoint and dropped game user), other host users cannot.
