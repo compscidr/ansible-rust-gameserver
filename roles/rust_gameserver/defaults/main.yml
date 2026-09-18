@@ -140,6 +140,18 @@ rust_gameserver_identity_dir_mode: '0755'
 # runtime group afterwards, so Oxide can read what the manager wrote whatever umask it used.
 rust_gameserver_plugins_dir_mode: "{{ '2775' if rust_gameserver_manager_users | length > 0 else '0755' }}"
 
+# Mode for the install root and RustDedicated_Data/Managed (with its x64 and x86). Derived the
+# same way as the plugins directory, for the same reason: rustd.xyz#575 was the plugins fix
+# above landing while a panel-driven OXIDE install still died at "Permission denied", because
+# Oxide extracts over Managed and backs up into the install root, and both were left 0755.
+#
+# Directory write is the whole grant. `unzip -o` unlinks and recreates, so the game's own 644
+# files stay as they are; what the manager can do is replace assemblies under Managed — which
+# is precisely what installing Oxide is. The install root's OTHER children (server/, the
+# game's data and bundles) keep their own modes; setgid on the root only keeps the runtime
+# group on what the manager creates there.
+rust_gameserver_game_dir_mode: "{{ '2775' if rust_gameserver_manager_users | length > 0 else '0755' }}"
+
 # Where a server's ENTIRE tree lives on the host: the game install root, mounted at
 # /steamcmd/rust in the container. The game's own layout nests the identity (save) dir
 # at server/<identity> inside it, so everything about one server — binaries, plugins,
