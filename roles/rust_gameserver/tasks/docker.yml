@@ -43,6 +43,8 @@
       - /dev/dri:/dev/dri
     restart_policy: unless-stopped
     memory: 20g
+    # See rust_gameserver_cpu_shares: a weight against the host's other containers, not a cap.
+    cpu_shares: "{{ rust_gameserver_cpu_shares if (rust_gameserver_cpu_shares | int) > 0 else omit }}"
     # The image ships a HEALTHCHECK that runs `rcon test` and reports unhealthy
     # while RCON is starting up. Docker respects `start_period`, but some
     # third-party container managers (e.g. UGREEN NAS's docker_serv) don't and
