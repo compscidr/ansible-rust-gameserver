@@ -52,6 +52,19 @@ rust_gameserver_seed: 50000
 # which Docker treats as "no healthcheck". You'll lose the unhealthy-marker
 # signal in `docker ps`, but the container will be allowed to finish booting.
 rust_gameserver_healthcheck_disabled: false
+# CPU priority of the server's container relative to every other container on the host
+# (Docker `--cpu-shares`; docker deployments only). 0, the default, leaves Docker's default
+# in place. Rust's server tick is mostly one thread, so on a host shared with CPU-heavy
+# neighbours (CI runners, transcoding) the game stutters whenever they take the cores, and
+# players see it as ping spikes. A high value lets the game win under contention while the
+# neighbours still get all the CPU it is not using; it is a weight, never a cap.
+#
+# On cgroup v2 the runtime turns shares into `cpu.weight`; the exact mapping depends on the
+# runc version (non-linear in recent ones). 26214 measured as weight 1394 against the default
+# 100 every other container gets; read /sys/fs/cgroup/.../cpu.weight to see yours. Changing it
+# updates the running container in place; the game is not restarted. Setting it back to 0
+# leaves whatever value the container already has: 0 means "don't manage", not "reset".
+rust_gameserver_cpu_shares: 0
 # When true (default), the wipe cron + wipe.sh are installed. Set false when an
 # external manager (e.g. rustd.xyz) owns wipes: the cron is REMOVED and wipe.sh
 # is not templated.
